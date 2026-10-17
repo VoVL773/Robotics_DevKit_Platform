@@ -1,0 +1,18 @@
+# Python 虚拟环境
+.venv/
+venv/
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# 测试缓存
+.pytest_cache/
+
+# VS Code 相关
+.vscode/
+
+# 构建产物
+build/
+dist/
+*.egg-info/

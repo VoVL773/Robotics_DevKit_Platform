@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "robot-cli"
+version = "0.1.0"
+description = "rdk 机器人开发工具链命令行：查看模板、创建 ROS 2 项目"
+requires-python = ">=3.10"
+dependencies = ["typer"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+robot-cli = "rdk_cli.main:app"
+
+[tool.setuptools.packages.find]
+include = ["rdk_cli*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# ROS 2 Jazzy 自带的 launch_testing pytest 插件缺少依赖，会让 pytest 直接崩溃，
+# 这里显式关掉它们；rdk 的测试不需要这些插件。
+addopts = "-p no:launch_testing -p no:launch_ros"
