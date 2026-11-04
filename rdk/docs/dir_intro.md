@@ -4,7 +4,9 @@
 rdk/
 ├── docs/                         使用与验收文档
 ├── rdk_cli/
-│   ├── main.py                   命令、终端向导、渲染和项目生成
+│   ├── main.py                   子命令、旧问答向导、渲染和项目生成
+│   ├── tui.py                    Textual 全屏界面、异步任务、日志和取消
+│   ├── terminal.py               Rich 表格、边框与旧向导高亮
 │   ├── template_store.py         版本、参数、状态、评审、Git/注册表导入
 │   ├── registry.py               旧登记表导入兼容入口
 │   └── environment.py            ROS 生成所需 Ubuntu/Jazzy 检查
@@ -17,7 +19,8 @@ rdk/
 │   ├── test_cli.py               命令和 ROS 环境检查
 │   ├── test_templates.py         生命周期、版本、参数、导入、向导
 │   ├── test_packaging.py         wheel 安装后的资源定位与生成
-│   └── test_smoke.py             真实 ROS 构建运行与 CPU 训练评测
+│   ├── test_smoke.py             真实 ROS 构建运行与 CPU 训练评测
+│   └── test_tui.py               控件交互、真实生成、任务取消和退出清理
 └── pyproject.toml                v1.1.0 打包配置与入口
 ```
 

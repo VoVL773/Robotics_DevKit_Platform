@@ -31,6 +31,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 import rdk_cli.main as cli
+import rdk_cli.tui as tui
+assert Path(tui.__file__).is_relative_to(Path(sys.argv[1]))
 from rdk_cli import template_store as store
 assert Path(cli.__file__).is_relative_to(Path(sys.argv[1]))
 assert store.BUILTIN_ROOT.is_relative_to(Path(sys.argv[1]))

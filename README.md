@@ -1,7 +1,7 @@
 # Robotics DevKit Platform
 
 面向机器人与具身智能研发的工程工具平台。当前交付 **robot-cli v1.1 终端版**：
-交互式项目向导、版本化模板管理，以及 ROS 2 C++、ROS 2 Python、ROS 2 Bringup、PyTorch Training 四个 P0 模板。
+Textual 全屏终端工作台、版本化模板管理，以及 ROS 2 C++、ROS 2 Python、ROS 2 Bringup、PyTorch Training 四个 P0 模板。
 
 ```bash
 cd rdk
@@ -11,7 +11,10 @@ python -m pip install -e '.[dev]'
 robot-cli
 ```
 
-不带参数进入终端菜单；创建成功、可选构建测试完成后自动退出。
+不带参数进入可点击的全屏终端界面，提供“项目创建 / 模板管理 / 环境检查 / 构建日志”四个页面。
+支持鼠标、Tab 切换焦点、F5 刷新和 Ctrl+Q 退出；任务在后台执行，可查看实时日志并取消。
+默认成功后自动退出，也可在表单中取消勾选，留在界面查看结果。
+旧版逐步问答向导保留为 `robot-cli --wizard`。
 也可以使用子命令编写脚本：
 
 ```bash

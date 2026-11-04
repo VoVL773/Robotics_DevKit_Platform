@@ -419,12 +419,25 @@ def interactive_wizard():
 
 
 @app.callback(invoke_without_command=True)
-def main(ctx: typer.Context, version: bool = typer.Option(False, '--version', help='显示 CLI 版本')):
+def main(
+    ctx: typer.Context,
+    version: bool = typer.Option(False, '--version', help='显示 CLI 版本'),
+    wizard: bool = typer.Option(False, '--wizard', help='使用逐步问答向导，兼容不支持全屏界面的终端'),
+):
     if version:
         typer.echo('robot-cli 1.1.0')
         raise typer.Exit()
     if ctx.invoked_subcommand is None:
-        interactive_wizard()
+        if wizard:
+            interactive_wizard()
+            return
+        import sys
+        if not sys.stdin.isatty() or not sys.stdout.isatty():
+            _fail('全屏界面需要交互式终端；请直接在终端运行 robot-cli，或使用 --wizard / 子命令。')
+        from rdk_cli.tui import DevKitApp
+        result = DevKitApp().run()
+        if result:
+            typer.echo(result)
 
 
 if __name__ == '__main__':

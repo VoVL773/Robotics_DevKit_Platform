@@ -17,3 +17,5 @@ include = ["training*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# 训练测试不使用 ROS Launch 插件，避免混合终端环境引入额外 ROS 依赖。
+addopts = "-p no:launch_testing -p no:launch_ros"

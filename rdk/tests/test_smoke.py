@@ -63,8 +63,7 @@ def test_ros_build_test_and_launch(template, tmp_path):
 
 def test_cpu_training_and_evaluation(tmp_path):
     pytest.importorskip('torch')
-    env = {**os.environ, 'ROBOT_CLI_TEMPLATE_HOME': str(tmp_path / 'store'),
-           'PYTEST_DISABLE_PLUGIN_AUTOLOAD': '1'}
+    env = {**os.environ, 'ROBOT_CLI_TEMPLATE_HOME': str(tmp_path / 'store')}
     env.pop('ROS_DISTRO', None)
     env.pop('ROS_VERSION', None)
     run([sys.executable, '-m', 'rdk_cli.main', 'project', 'create', 'pytorch-training',

@@ -7,8 +7,8 @@ import shutil
 import typer
 
 
-def check_environment() -> None:
-    """不满足要求时显示检测结果并退出，不执行后续业务操作。"""
+def environment_status() -> dict:
+    """返回环境事实，供命令行检查与终端界面共同使用。"""
     try:
         release = platform.freedesktop_os_release()
     except OSError:
@@ -20,12 +20,23 @@ def check_environment() -> None:
     distro = os.environ.get("ROS_DISTRO", "")
     ros_version = os.environ.get("ROS_VERSION", "")
     ros_command = shutil.which("ros2")
-    if system_ok and distro == "jazzy" and ros_version == "2" and ros_command:
-        return
-
     system = release.get("PRETTY_NAME") or (
         f"{release.get('ID', '未知系统')} {release.get('VERSION_ID', '未知版本')}"
     )
+    return {
+        "release": release, "system": system, "system_ok": system_ok,
+        "distro": distro, "ros_version": ros_version, "ros_command": ros_command,
+        "ready": bool(system_ok and distro == "jazzy" and ros_version == "2" and ros_command),
+    }
+
+
+def check_environment() -> None:
+    """ROS 创建环境不满足要求时显示检测结果并退出。"""
+    status = environment_status()
+    if status["ready"]:
+        return
+    release, system, system_ok = status["release"], status["system"], status["system_ok"]
+    distro, ros_version, ros_command = status["distro"], status["ros_version"], status["ros_command"]
     typer.secho("错误：当前环境不符合运行要求，命令已停止。", fg=typer.colors.RED, err=True)
     typer.echo("需要环境：Ubuntu 24.04 + ROS 2 Jazzy（已加载到当前终端）", err=True)
     typer.echo(f"当前系统：{system}", err=True)
