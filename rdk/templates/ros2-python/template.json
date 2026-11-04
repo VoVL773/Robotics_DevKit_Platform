@@ -1,0 +1,61 @@
+{
+  "name": "ros2-python",
+  "version": "1.0.0",
+  "description": "ROS 2 Python 节点、参数、Launch 与测试",
+  "kind": "ros2_python",
+  "priority": "P0",
+  "status": "published",
+  "maintainer": "Robotics DevKit Platform contributors",
+  "environment": [
+    "Ubuntu 24.04",
+    "ROS 2 Jazzy"
+  ],
+  "dependencies": [
+    "rclpy",
+    "ament_python",
+    "launch_ros",
+    "ament_index_python",
+    "python3-pytest"
+  ],
+  "ros_distro": [
+    "jazzy"
+  ],
+  "changelog": [
+    "1.0.0: 首期独立可运行模板，包含文档与自动化冒烟测试"
+  ],
+  "parameters": {
+    "package_name": {
+      "type": "string",
+      "required": true,
+      "pattern": "[a-z](?:[a-z0-9_]*[a-z0-9])?"
+    },
+    "maintainer": {
+      "type": "string",
+      "default": "Robotics DevKit contributors",
+      "required": true,
+      "pattern": "[\\w .@+\\-]+"
+    },
+    "node_name": {
+      "type": "string",
+      "default": "hello_node",
+      "pattern": "[a-z][a-z0-9_]*"
+    },
+    "maintainer_email": {
+      "type": "string",
+      "default": "maintainer@example.com",
+      "pattern": "[\\w.+\\-]+@[\\w.\\-]+\\.[A-Za-z]{2,}"
+    },
+    "license": {
+      "type": "string",
+      "default": "Apache-2.0",
+      "pattern": "[A-Za-z0-9][A-Za-z0-9. +\\-]*"
+    },
+    "ros_distro": {
+      "type": "string",
+      "default": "jazzy",
+      "enum": [
+        "jazzy"
+      ]
+    }
+  }
+}

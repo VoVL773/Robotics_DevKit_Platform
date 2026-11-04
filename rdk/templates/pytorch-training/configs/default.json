@@ -1,0 +1,9 @@
+{
+  "seed": 42,
+  "samples": 256,
+  "input_dim": 4,
+  "hidden_dim": 16,
+  "epochs": 20,
+  "learning_rate": 0.03,
+  "output_dir": "outputs"
+}
