@@ -1,45 +1,35 @@
 # {{package_name}}
 
-由 `robot-cli project create ros2-python --name {{package_name}}` 生成的 ROS 2 Python 软件包。
+ROS 2 Jazzy {{language}} 示例，由 {{template_id}}@{{template_version}} 生成。
+维护者：{{maintainer}}；许可证：{{license}}。
 
-## 目录结构
+## 构建、运行和测试
 
-```
-{{package_name}}/
-├── package.xml              # 软件包元信息（名称、依赖、许可证）
-├── setup.py                 # Python 打包配置，console_scripts 里登记可执行文件
-├── setup.cfg                # ament_python 安装路径配置
-├── resource/{{package_name}}  # ament 资源索引标记文件（空文件，不要删）
-├── {{package_name}}/
-│   ├── __init__.py
-│   └── hello_node.py        # 示例节点：每秒打印一条日志
-└── test/                    # ROS 2 自带的代码风格测试
-```
-
-## 编译并运行
-
-在 ROS 2 工作空间根目录（例如 `~/demo_ws`，里面有 `src/{{package_name}}`）执行：
+在 Ubuntu 24.04 中安装 ROS 2 Jazzy 和 colcon，加载环境后，将此目录放在工作空间 src/ 下。
+生成目录包含全部源代码，无需保留 robot-cli 或原始模板仓库。
 
 ```bash
-# 1. 编译（--symlink-install 让 Python 文件修改后无需重新编译）
-colcon build --symlink-install
-
-# 2. 让当前终端找到刚编译出来的包
+source /opt/ros/jazzy/setup.bash
+cd ~/demo_ws
+rosdep install --from-paths src --ignore-src -r -y
+colcon build --symlink-install --packages-select {{package_name}}
 source install/setup.bash
-
-# 3. 运行示例节点
-ros2 run {{package_name}} hello_node
+ros2 run {{package_name}} {{node_name}}
 ```
 
-看到下面的输出就说明成功了：
+也可以通过 Launch 加载 `config/hello.yaml`：
 
-```text
-[INFO] [1750000000.123456789] [hello_node]: hello_node 已启动，按 Ctrl+C 退出
-[INFO] [1750000000.623456789] [hello_node]: hello from {{package_name}} #1
-[INFO] [1750000001.123456789] [hello_node]: hello from {{package_name}} #2
+```bash
+ros2 launch {{package_name}} hello.launch.py
 ```
 
-## 修改示例
+节点每秒输出一条日志。`message` 为日志内容，`period` 为正数秒数；修改参数后重启节点。
+直接运行时可使用 `--ros-args -p period:=0.5 -p message:=hello`。按 Ctrl+C 退出。
+这是日志演示节点，不发布 Topic、Service、Action 或 TF。
 
-编辑 `{{package_name}}/hello_node.py` 的 `_on_timer` 方法即可改掉打印内容。
-想换节点名，就同时修改 `setup.py` 里 `console_scripts` 的名字。
+```bash
+colcon test --packages-select {{package_name}} --event-handlers console_direct+
+colcon test-result --verbose
+```
+
+测试验证节点计时回调或参数约束；实际运行请确认日志持续输出。

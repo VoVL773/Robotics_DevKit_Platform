@@ -1,0 +1,4 @@
+/**:
+  ros__parameters:
+    message: "hello from {{package_name}}"
+    period: 1.0
