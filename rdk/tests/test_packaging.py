@@ -31,6 +31,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 import rdk_cli.main as cli
+from rdk_cli.project_files import render_template
 import rdk_cli.tui as tui
 assert Path(tui.__file__).is_relative_to(Path(sys.argv[1]))
 from rdk_cli import template_store as store
@@ -42,7 +43,7 @@ for record in store.inventory():
     values.update(template_id=record['name'], template_version=record['version'],
                   package_name_upper='WHEEL_DEMO', language=record['kind'])
     destination = Path(sys.argv[2]) / record['name']
-    cli.render_template(record, destination, values)
+    render_template(record, destination, values)
     assert (destination / 'README.md').is_file()
     for path in destination.rglob('*.py'):
         ast.parse(path.read_text())

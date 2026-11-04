@@ -1,25 +1,23 @@
 """Textual 终端工作台：表单与模板管理复用现有逻辑，耗时任务运行在独立进程组中。"""
 
-import asyncio
 import importlib.metadata
 import json
-import os
-from pathlib import Path
-import re
 import shlex
-import signal
 import sys
 
 from rich.text import Text
 from textual import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Vertical
 from textual.widgets import (
-    Button, Checkbox, Collapsible, DataTable, Footer, Header, Input, Label,
-    LoadingIndicator, RichLog, Select, Static, TabbedContent, TabPane,
+    Button, Checkbox, DataTable, Input, Label,
+    LoadingIndicator, RichLog, Select, Static, TabbedContent,
 )
 
+from rdk_cli.process_runner import ProcessRunner
+from rdk_cli.project_service import ProjectRequest, prepare_project
+from rdk_cli.tui_layout import WORKBENCH_CSS, compose_workbench
 from rdk_cli import environment
 from rdk_cli import template_store as store
 
@@ -41,54 +39,14 @@ class DevKitApp(App[str]):
         Binding('ctrl+q', 'quit', '退出'),
         Binding('ctrl+c', 'quit', '退出', show=False),
     ]
-    CSS = '''
-    Screen { background: #181d24; color: #dae4ee; }
-    Header { background: #123247; color: #e0f5ff; }
-    Footer { background: #123247; }
-    Tabs { background: #202b37; }
-    Tab.-active { color: #67d5ff; text-style: bold; }
-    Underline > .underline--bar { color: #37b8ef; background: #37b8ef; }
-    TabbedContent { height: 1fr; }
-    TabPane { padding: 1 2; }
-    .heading { color: #67d5ff; text-style: bold; margin-bottom: 1; height: auto; }
-    .hint { color: #94a8bc; height: auto; margin-bottom: 1; }
-    #create-layout { height: 1fr; }
-    #template-sidebar { width: 36; min-width: 24; border: round #299bcc; padding: 1; margin-right: 2; }
-    #project-panel { width: 1fr; min-width: 30; border: round #299bcc; }
-    #project-form { height: 1fr; padding: 1 2; }
-    #project-actions { padding: 0 2 1 2; margin: 0; }
-    Screen.compact TabPane { padding: 0 1; }
-    Screen.compact #template-sidebar { width: 25; min-width: 20; padding: 0 1; margin-right: 1; }
-    Screen.compact #project-panel { min-width: 26; }
-    Screen.compact #project-form { padding: 0 1; }
-    Screen.compact #project-actions { padding: 0 1; }
-    #template-description { height: auto; margin-top: 1; }
-    Label { height: auto; margin-top: 1; color: #b6cddd; }
-    Input, Select { width: 1fr; margin-top: 0; }
-    Input:focus { border: tall #67d5ff; }
-    #parameters { height: auto; }
-    .buttons { height: auto; margin-top: 1; }
-    Button { margin-right: 1; }
-    Checkbox { margin: 0; height: auto; }
-    #project-error { height: auto; color: #ff8e91; margin-top: 1; }
-    #job-status { height: auto; background: #203344; padding: 0 2; color: #67d5ff; }
-    #template-table { height: 10; border: round #299bcc; }
-    #template-detail { height: auto; padding: 1; border: round #299bcc; margin-top: 1; }
-    .form-section { height: auto; padding: 0 1 1 1; }
-    #management-message { height: auto; color: #67d5ff; margin-top: 1; }
-    #environment-report { height: auto; border: round #299bcc; padding: 1 2; }
-    #build-log { height: 1fr; border: round #299bcc; background: #10151b; }
-    #running { height: 1; display: none; }
-    #running.visible { display: block; }
-    #log-heading { height: auto; }
-    '''
+    CSS = WORKBENCH_CSS
 
     def __init__(self):
         super().__init__()
         self.records = []
         self.project_record = None
         self.managed_reference = None
-        self.process = None
+        self.runner = ProcessRunner()
         self.busy = False
         self.cancel_requested = False
         self.quit_requested = False
@@ -97,81 +55,7 @@ class DevKitApp(App[str]):
         self.last_result = None
 
     def compose(self) -> ComposeResult:
-        yield Header()
-        with TabbedContent(initial='create-tab', id='tabs'):
-            with TabPane('项目创建', id='create-tab'):
-                with Horizontal(id='create-layout'):
-                    with VerticalScroll(id='template-sidebar'):
-                        yield Static('01  选择模板', classes='heading')
-                        yield Static('固定版本创建，已有项目不会被覆盖。', classes='hint')
-                        yield Select([], prompt='请选择模板', id='project-template')
-                        yield Static('', id='template-description', markup=False)
-                    with Vertical(id='project-panel'):
-                        with VerticalScroll(id='project-form'):
-                            yield Static('02  项目配置', classes='heading')
-                            with Vertical(id='parameters'):
-                                yield Static('正在加载模板…')
-                            yield Label('生成位置（ROS 建议选择工作空间 src 目录）')
-                            yield Input(str(Path.cwd()), id='output')
-                            yield Checkbox('初始化 Git 仓库', id='git')
-                            yield Checkbox('生成 GitHub Actions CI', id='ci')
-                            yield Checkbox('构建并执行冒烟测试（需提前安装依赖）', id='smoke')
-                            yield Checkbox('成功后自动退出', value=True, id='auto-exit')
-                            yield Static('', id='project-error', markup=False)
-                        with Horizontal(classes='buttons', id='project-actions'):
-                            yield Button('创建项目', variant='primary', id='create-project')
-                            yield Button('查看日志', id='view-logs')
-            with TabPane('模板管理', id='manage-tab'):
-                with VerticalScroll():
-                    yield Static('模板版本与发布状态', classes='heading')
-                    yield DataTable(id='template-table', cursor_type='row')
-                    with Horizontal(classes='buttons'):
-                        yield Button('启用版本', variant='success', id='enable-template')
-                        yield Button('停用版本', variant='warning', id='disable-template')
-                        yield Button('刷新', id='refresh-templates')
-                    yield Static('', id='template-detail', markup=False)
-                    yield Label('评审人（完成团队评审后填写）')
-                    yield Input(placeholder='reviewer@example.com', id='reviewer')
-                    yield Button('记录评审并发布', id='publish-template', variant='primary')
-                    yield Static('', id='management-message', markup=False)
-                    with Collapsible(title='新建团队模板', collapsed=True):
-                        with Vertical(classes='form-section'):
-                            yield Label('模板名称')
-                            yield Input(placeholder='team-demo', id='draft-name')
-                            yield Label('版本')
-                            yield Input('0.1.0', id='draft-version')
-                            yield Label('维护者')
-                            yield Input(placeholder='Robot Team', id='draft-maintainer')
-                            yield Label('类型')
-                            yield Select([(name, name) for name in sorted(store.KINDS)],
-                                         value='directory', allow_blank=False, id='draft-kind')
-                            yield Button('创建草稿', id='create-draft', variant='primary')
-                    with Collapsible(title='从本地 / Git / 注册表导入', collapsed=True):
-                        with Vertical(classes='form-section'):
-                            yield Label('模板目录、Git URL 或注册表模板引用')
-                            yield Input(placeholder='目录 / Git URL / team-demo@1.0.0', id='import-source')
-                            yield Label('注册表路径或 URL（可选）')
-                            yield Input(id='import-registry')
-                            yield Label('Git ref（可选）')
-                            yield Input(id='import-ref')
-                            yield Label('仓库内模板子目录')
-                            yield Input('.', id='import-subdir')
-                            yield Button('导入为草稿', id='import-template', variant='primary')
-            with TabPane('环境检查', id='env-tab'):
-                with VerticalScroll():
-                    yield Static('当前终端环境', classes='heading')
-                    yield Static('ROS 项目需要 Ubuntu 24.04 + Jazzy；PyTorch 创建无需 ROS。', classes='hint')
-                    yield Static('', id='environment-report', markup=False)
-                    yield Button('重新检查', id='check-environment', variant='primary')
-            with TabPane('构建日志', id='logs-tab'):
-                yield Static('生成、构建与测试输出', id='log-heading', classes='heading')
-                yield LoadingIndicator(id='running')
-                yield RichLog(id='build-log', wrap=True, markup=False, max_lines=5000)
-                with Horizontal(classes='buttons'):
-                    yield Button('取消任务', variant='error', id='cancel-task', disabled=True)
-                    yield Button('返回项目配置', id='back-to-form')
-        yield Static('就绪 · 选择模板并填写项目参数', id='job-status', markup=False)
-        yield Footer()
+        yield from compose_workbench()
 
     def on_resize(self, event):
         self.screen.set_class(event.size.width < 95, 'compact')
@@ -190,7 +74,7 @@ class DevKitApp(App[str]):
     async def refresh_templates(self):
         try:
             self.records = store.inventory()
-        except (store.TemplateError, OSError) as error:
+        except (store.TemplateError, environment.EnvironmentCheckError, OSError) as error:
             self.message(str(error), error=True)
             return
         available = [record for record in self.records if record['enabled'] and record['status'] == 'published']
@@ -323,19 +207,16 @@ class DevKitApp(App[str]):
             if value == '' and not spec.get('required') and 'default' not in spec:
                 continue
             supplied[key] = value
-        values = store.parameters(self.project_record, supplied)
-        name = values['package_name']
-        if not re.fullmatch(r'[a-z](?:[a-z0-9_]*[a-z0-9])?', name):
-            raise store.TemplateError('项目名必须以小写字母开头，只含小写字母、数字和下划线，且不能以下划线结尾')
+        name = supplied.pop('package_name', '')
         output = self.query_one('#output', Input).value.strip()
-        if not output:
-            raise store.TemplateError('请填写生成位置')
-        destination = Path(output).expanduser().resolve() / name
-        if destination.exists() or destination.is_symlink():
-            raise store.TemplateError(f'目标路径已经存在：{destination}')
-        if self.project_record['kind'].startswith('ros2_') and not environment.environment_status()['ready']:
-            raise store.TemplateError('ROS 环境未就绪，请先在启动 robot-cli 的终端加载 Ubuntu 24.04 + ROS 2 Jazzy')
-        return supplied, output, destination
+        request = ProjectRequest(
+            self.reference(self.project_record), name, output, supplied,
+            initialize_git=self.query_one('#git', Checkbox).value,
+            ci=self.query_one('#ci', Checkbox).value,
+            smoke_test=self.query_one('#smoke', Checkbox).value,
+        )
+        plan = prepare_project(request)
+        return {'package_name': name, **supplied}, output, plan.project_path
 
     @on(Button.Pressed)
     async def button_pressed(self, event):
@@ -391,7 +272,7 @@ class DevKitApp(App[str]):
                     if value:
                         command.extend([flag, value])
                 self.start_job(command, '导入模板')
-        except (store.TemplateError, OSError) as error:
+        except (store.TemplateError, environment.EnvironmentCheckError, OSError) as error:
             if identifier == 'create-project':
                 self.query_one('#project-error', Static).update(str(error))
                 self.notify(str(error), severity='error')
@@ -430,20 +311,11 @@ class DevKitApp(App[str]):
     async def run_command(self, command, title, project, auto_exit):
         log = self.query_one('#build-log', RichLog)
         try:
-            self.process = await asyncio.create_subprocess_exec(
-                *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-                start_new_session=True, limit=1024 * 1024,
-                env={**os.environ, 'PYTHONUNBUFFERED': '1', 'NO_COLOR': '1', 'TERM': 'dumb',
-                     'GIT_TERMINAL_PROMPT': '0', 'GIT_SSH_COMMAND': 'ssh -o BatchMode=yes'},
+            code = await self.runner.run(
+                command,
+                on_line=lambda line: log.write(Text.from_ansi(line)),
+                cancelled=lambda: self.cancel_requested,
             )
-            if self.cancel_requested:
-                await self.terminate_process()
-            while True:
-                chunk = await self.process.stdout.readline()
-                if not chunk:
-                    break
-                log.write(Text.from_ansi(chunk.decode('utf-8', errors='replace').rstrip()))
-            code = await self.process.wait()
             if self.cancel_requested:
                 message = '任务已取消；已生成文件保留，请检查后重试。'
                 self.last_result = 'cancelled'
@@ -467,28 +339,14 @@ class DevKitApp(App[str]):
         finally:
             # 即使读取日志异常，也不能遗留构建进程或 Git 子进程。
             await self.terminate_process()
-            self.process = None
             self.set_busy(False)
 
+    @property
+    def process(self):
+        return self.runner.process
+
     async def terminate_process(self):
-        process = self.process
-        if process is None:
-            return
-        # 进程组包含 CLI、colcon、CMake 等后代；父进程已退出时也清理同组子进程。
-        try:
-            os.killpg(process.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            return
-        try:
-            await asyncio.wait_for(process.wait(), timeout=3)
-        except asyncio.TimeoutError:
-            pass
-        # 子进程可能忽略 SIGTERM，不能只依据组长是否退出判断清理完成。
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        await process.wait()
+        await self.runner.terminate()
 
     async def cancel_task(self):
         if self.busy:

@@ -5,7 +5,7 @@ import subprocess
 import pytest
 from typer.testing import CliRunner
 
-from rdk_cli.main import app, render_template
+from rdk_cli.main import app
 from rdk_cli import template_store as store
 
 runner = CliRunner()

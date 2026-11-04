@@ -16,7 +16,7 @@ dev = ["pytest"]
 robot-cli = "rdk_cli.main:app"
 
 [tool.setuptools]
-packages = ["rdk_cli", "rdk_templates"]
+packages = ["rdk_cli", "rdk_cli.commands", "rdk_templates"]
 
 [tool.setuptools.package-dir]
 rdk_templates = "templates"

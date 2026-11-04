@@ -1,0 +1,131 @@
+"""工作台布局与样式；控件 ID 是界面控制器与布局之间的约定。"""
+from pathlib import Path
+
+from textual.app import ComposeResult
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.widgets import (
+    Button, Checkbox, Collapsible, DataTable, Footer, Header, Input, Label,
+    LoadingIndicator, RichLog, Select, Static, TabbedContent, TabPane,
+)
+
+from rdk_cli import template_store as store
+
+WORKBENCH_CSS = '''
+    Screen { background: #181d24; color: #dae4ee; }
+    Header { background: #123247; color: #e0f5ff; }
+    Footer { background: #123247; }
+    Tabs { background: #202b37; }
+    Tab.-active { color: #67d5ff; text-style: bold; }
+    Underline > .underline--bar { color: #37b8ef; background: #37b8ef; }
+    TabbedContent { height: 1fr; }
+    TabPane { padding: 1 2; }
+    .heading { color: #67d5ff; text-style: bold; margin-bottom: 1; height: auto; }
+    .hint { color: #94a8bc; height: auto; margin-bottom: 1; }
+    #create-layout { height: 1fr; }
+    #template-sidebar { width: 36; min-width: 24; border: round #299bcc; padding: 1; margin-right: 2; }
+    #project-panel { width: 1fr; min-width: 30; border: round #299bcc; }
+    #project-form { height: 1fr; padding: 1 2; }
+    #project-actions { padding: 0 2 1 2; margin: 0; }
+    Screen.compact TabPane { padding: 0 1; }
+    Screen.compact #template-sidebar { width: 25; min-width: 20; padding: 0 1; margin-right: 1; }
+    Screen.compact #project-panel { min-width: 26; }
+    Screen.compact #project-form { padding: 0 1; }
+    Screen.compact #project-actions { padding: 0 1; }
+    #template-description { height: auto; margin-top: 1; }
+    Label { height: auto; margin-top: 1; color: #b6cddd; }
+    Input, Select { width: 1fr; margin-top: 0; }
+    Input:focus { border: tall #67d5ff; }
+    #parameters { height: auto; }
+    .buttons { height: auto; margin-top: 1; }
+    Button { margin-right: 1; }
+    Checkbox { margin: 0; height: auto; }
+    #project-error { height: auto; color: #ff8e91; margin-top: 1; }
+    #job-status { height: auto; background: #203344; padding: 0 2; color: #67d5ff; }
+    #template-table { height: 10; border: round #299bcc; }
+    #template-detail { height: auto; padding: 1; border: round #299bcc; margin-top: 1; }
+    .form-section { height: auto; padding: 0 1 1 1; }
+    #management-message { height: auto; color: #67d5ff; margin-top: 1; }
+    #environment-report { height: auto; border: round #299bcc; padding: 1 2; }
+    #build-log { height: 1fr; border: round #299bcc; background: #10151b; }
+    #running { height: 1; display: none; }
+    #running.visible { display: block; }
+    #log-heading { height: auto; }
+    '''
+
+def compose_workbench() -> ComposeResult:
+    yield Header()
+    with TabbedContent(initial='create-tab', id='tabs'):
+        with TabPane('项目创建', id='create-tab'):
+            with Horizontal(id='create-layout'):
+                with VerticalScroll(id='template-sidebar'):
+                    yield Static('01  选择模板', classes='heading')
+                    yield Static('固定版本创建，已有项目不会被覆盖。', classes='hint')
+                    yield Select([], prompt='请选择模板', id='project-template')
+                    yield Static('', id='template-description', markup=False)
+                with Vertical(id='project-panel'):
+                    with VerticalScroll(id='project-form'):
+                        yield Static('02  项目配置', classes='heading')
+                        with Vertical(id='parameters'):
+                            yield Static('正在加载模板…')
+                        yield Label('生成位置（ROS 建议选择工作空间 src 目录）')
+                        yield Input(str(Path.cwd()), id='output')
+                        yield Checkbox('初始化 Git 仓库', id='git')
+                        yield Checkbox('生成 GitHub Actions CI', id='ci')
+                        yield Checkbox('构建并执行冒烟测试（需提前安装依赖）', id='smoke')
+                        yield Checkbox('成功后自动退出', value=True, id='auto-exit')
+                        yield Static('', id='project-error', markup=False)
+                    with Horizontal(classes='buttons', id='project-actions'):
+                        yield Button('创建项目', variant='primary', id='create-project')
+                        yield Button('查看日志', id='view-logs')
+        with TabPane('模板管理', id='manage-tab'):
+            with VerticalScroll():
+                yield Static('模板版本与发布状态', classes='heading')
+                yield DataTable(id='template-table', cursor_type='row')
+                with Horizontal(classes='buttons'):
+                    yield Button('启用版本', variant='success', id='enable-template')
+                    yield Button('停用版本', variant='warning', id='disable-template')
+                    yield Button('刷新', id='refresh-templates')
+                yield Static('', id='template-detail', markup=False)
+                yield Label('评审人（完成团队评审后填写）')
+                yield Input(placeholder='reviewer@example.com', id='reviewer')
+                yield Button('记录评审并发布', id='publish-template', variant='primary')
+                yield Static('', id='management-message', markup=False)
+                with Collapsible(title='新建团队模板', collapsed=True):
+                    with Vertical(classes='form-section'):
+                        yield Label('模板名称')
+                        yield Input(placeholder='team-demo', id='draft-name')
+                        yield Label('版本')
+                        yield Input('0.1.0', id='draft-version')
+                        yield Label('维护者')
+                        yield Input(placeholder='Robot Team', id='draft-maintainer')
+                        yield Label('类型')
+                        yield Select([(name, name) for name in sorted(store.KINDS)],
+                                     value='directory', allow_blank=False, id='draft-kind')
+                        yield Button('创建草稿', id='create-draft', variant='primary')
+                with Collapsible(title='从本地 / Git / 注册表导入', collapsed=True):
+                    with Vertical(classes='form-section'):
+                        yield Label('模板目录、Git URL 或注册表模板引用')
+                        yield Input(placeholder='目录 / Git URL / team-demo@1.0.0', id='import-source')
+                        yield Label('注册表路径或 URL（可选）')
+                        yield Input(id='import-registry')
+                        yield Label('Git ref（可选）')
+                        yield Input(id='import-ref')
+                        yield Label('仓库内模板子目录')
+                        yield Input('.', id='import-subdir')
+                        yield Button('导入为草稿', id='import-template', variant='primary')
+        with TabPane('环境检查', id='env-tab'):
+            with VerticalScroll():
+                yield Static('当前终端环境', classes='heading')
+                yield Static('ROS 项目需要 Ubuntu 24.04 + Jazzy；PyTorch 创建无需 ROS。', classes='hint')
+                yield Static('', id='environment-report', markup=False)
+                yield Button('重新检查', id='check-environment', variant='primary')
+        with TabPane('构建日志', id='logs-tab'):
+            yield Static('生成、构建与测试输出', id='log-heading', classes='heading')
+            yield LoadingIndicator(id='running')
+            yield RichLog(id='build-log', wrap=True, markup=False, max_lines=5000)
+            with Horizontal(classes='buttons'):
+                yield Button('取消任务', variant='error', id='cancel-task', disabled=True)
+                yield Button('返回项目配置', id='back-to-form')
+    yield Static('就绪 · 选择模板并填写项目参数', id='job-status', markup=False)
+    yield Footer()
+

@@ -4,7 +4,9 @@ import os
 import platform
 import shutil
 
-import typer
+
+class EnvironmentCheckError(RuntimeError):
+    """ROS 环境不符合模板要求，由调用方决定如何显示。"""
 
 
 def environment_status() -> dict:
@@ -37,20 +39,18 @@ def check_environment() -> None:
         return
     release, system, system_ok = status["release"], status["system"], status["system_ok"]
     distro, ros_version, ros_command = status["distro"], status["ros_version"], status["ros_command"]
-    typer.secho("错误：当前环境不符合运行要求，命令已停止。", fg=typer.colors.RED, err=True)
-    typer.echo("需要环境：Ubuntu 24.04 + ROS 2 Jazzy（已加载到当前终端）", err=True)
-    typer.echo(f"当前系统：{system}", err=True)
-    typer.echo(f"当前系统标识：{release.get('ID', '未知')} / {release.get('VERSION_ID', '未知')}", err=True)
-    typer.echo(f"当前 ROS_DISTRO：{distro or '未设置'}", err=True)
-    typer.echo(f"当前 ROS_VERSION：{ros_version or '未设置'}", err=True)
-    typer.echo(f"当前 ros2 命令：{ros_command or '未找到'}", err=True)
+    lines = [
+        "当前环境不符合运行要求，命令已停止。",
+        "需要环境：Ubuntu 24.04 + ROS 2 Jazzy（已加载到当前终端）",
+        f"当前系统：{system}",
+        f"当前系统标识：{release.get('ID', '未知')} / {release.get('VERSION_ID', '未知')}",
+        f"当前 ROS_DISTRO：{distro or '未设置'}",
+        f"当前 ROS_VERSION：{ros_version or '未设置'}",
+        f"当前 ros2 命令：{ros_command or '未找到'}",
+    ]
     if not system_ok:
-        typer.echo("建议：在 Ubuntu 24.04 主机或容器中运行。", err=True)
+        lines.append("建议：在 Ubuntu 24.04 主机或容器中运行。")
     if distro != "jazzy" or ros_version != "2" or not ros_command:
-        typer.echo(
-            "建议：安装 ROS 2 Jazzy，并在当前终端执行：\n"
-            "  source /opt/ros/jazzy/setup.bash\n"
-            "自定义安装请加载对应的 Jazzy setup.bash。",
-            err=True,
-        )
-    raise typer.Exit(code=1)
+        lines.append("建议：安装 ROS 2 Jazzy，并在当前终端执行：\n"
+                     "  source /opt/ros/jazzy/setup.bash\n自定义安装请加载对应的 Jazzy setup.bash。")
+    raise EnvironmentCheckError("\n".join(lines))

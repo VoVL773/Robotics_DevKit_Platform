@@ -1,6 +1,6 @@
 # CLI v1.1 本地验证记录
 
-验证日期：2026-11-04（Asia/Shanghai）。环境为 Ubuntu 24.04、Python 3.12、ROS 2 Jazzy，
+验证日期：2026-11-05（Asia/Shanghai）。环境为 Ubuntu 24.04、Python 3.12、ROS 2 Jazzy，
 PyTorch CPU 版本为 2.15.0+cpu。以下为实际执行结果，不代表远端 CI 已运行。
 
 ## CLI、管理和打包
@@ -11,7 +11,7 @@ PyTorch CPU 版本为 2.15.0+cpu。以下为实际执行结果，不代表远端
 rdk/.venv/bin/python -m pytest -q rdk/tests
 ```
 
-结果（含全屏 TUI 回归）：**49 passed, 4 skipped**。四项真实依赖冒烟测试默认跳过，已用下面的独立命令实际执行。
+结果（含全屏 TUI 回归）：**56 passed, 4 skipped**。四项真实依赖冒烟测试默认跳过，已用下面的独立命令实际执行。
 
 覆盖范围：
 
@@ -23,6 +23,7 @@ rdk/.venv/bin/python -m pytest -q rdk/tests
 - Textual 工作台的默认入口、模板/参数切换、刷新保留输入、80×24 与 120×42 窗口操作。
 - 通过界面实际生成独立项目、新建草稿、记录评审发布、启停与本地模板导入。
 - 后台任务失败后继续操作、运行中切页、取消整个进程组、启动瞬间退出时的清理。
+- 应用服务独立导入不加载 Typer/Rich/Textual，预检失败不生成目录，直接调用与 CLI 生成文件完全一致。
 - wheel 在仓库外安装，读取全部四种模板，渲染与 Python 语法检查，并通过安装后的 CLI 创建项目。
 
 未对真实团队私有 Git 服务和线上 HTTP 注册表做联通验证；相关 URL、认证和权限需由团队环境提供。
@@ -63,3 +64,12 @@ TUI 通过 Textual 无头终端操作测试，并导出截图检查布局；实�
 项目创建时 `--ci` 可生成独立项目的 GitHub Actions 文件。此次未推送或触发远端 CI。
 
 本次交付终端 CLI，桌面窗口后续实现。P1 模板、身份认证审批服务、断点恢复/导出、GPU 与真实机器人验证不在此次交付范围。
+
+## 模块拆分回归（2026-11-05）
+
+`main.py` 从 444 行缩减为 37 行，仅保留入口装配。命令、问答、项目服务、文件渲染、
+CI 内容、TUI 布局和后台进程管理分别归入对应模块，依赖方向见 `dir_intro.md`。
+CLI 与 TUI 统一使用 `prepare_project`，环境模块不再依赖 Typer。
+
+此次拆分后重新执行了上述完整测试（56 passed, 4 skipped）和四个真实模板冒烟（4 passed），
+并通过 `compileall`、`git diff --check`。完整测试包含 wheel 安装验证及原有 TUI 布局、取消和退出回归。
