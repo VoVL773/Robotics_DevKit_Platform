@@ -87,7 +87,7 @@ templates/
 所有模板必须声明字符串参数 `package_name`。
 参数名、项目名、节点名、模板兼容发行版和未知/重复参数都会校验。
 项目名采用小写字母、数字、下划线，不能以数字开头或以下划线结尾，也不能使用 Python/C++ 关键字。
-ROS 生成器当前仅支持 Jazzy；元数据中的 ROS 支持范围也必须为 Jazzy。
+ROS 生成器支持 Humble/Jazzy；元数据中的 ros_distro 必须是二者的非空子集。内置 1.0 保持 Jazzy 约束，1.1 支持双发行版。compatibility 声明 OS、ROS、Python、CUDA、框架和仿真器范围，详见 [环境管理](environments.md)。
 
 ```bash
 robot-cli project create team-demo@1.2.0 --name demo \

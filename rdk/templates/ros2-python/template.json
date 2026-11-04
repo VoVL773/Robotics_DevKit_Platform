@@ -57,5 +57,24 @@
         "jazzy"
       ]
     }
+  },
+  "compatibility": {
+    "platforms": [
+      {
+        "os": "ubuntu",
+        "version": "24.04",
+        "ros": "jazzy",
+        "python": ">=3.12,<3.13"
+      }
+    ],
+    "cuda": {
+      "required": false,
+      "versions": []
+    },
+    "frameworks": {
+      "rclcpp": "jazzy",
+      "rclpy": "jazzy"
+    },
+    "simulators": []
   }
 }

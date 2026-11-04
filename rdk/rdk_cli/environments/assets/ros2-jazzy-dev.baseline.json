@@ -1,0 +1,18 @@
+{
+  "profile": {
+    "name": "ros2-jazzy-dev",
+    "ros": "jazzy",
+    "ubuntu": "24.04",
+    "python": "3.12",
+    "base": "ros:jazzy-ros-base",
+    "gpu": false,
+    "cuda": null,
+    "driver_min": null,
+    "torch": null,
+    "version": "1.0.0",
+    "architecture": "amd64"
+  },
+  "base_digest": "ros@sha256:8eed0a4669bbf43ee331878a4c39bd8ebddea8e3312a58b4fae8edb14526b617",
+  "apt": "python3-pip=24.0+dfsg-1ubuntu1.3\npython3-pip-whl=24.0+dfsg-1ubuntu1.3\npython3-setuptools-whl=68.1.2-2ubuntu1.2\npython3-venv=3.12.3-0ubuntu2.1\npython3-wheel=0.42.0-2\npython3.12-venv=3.12.3-1ubuntu0.17\nros-jazzy-demo-nodes-cpp=0.33.11-1noble.20260920.235420\nros-jazzy-example-interfaces=0.12.1-1noble.20260911.054159\n",
+  "key_sha256": "4a91c49af0d6f0016108b93698782b596c27ccd836937e18e0e36c3347dc602f"
+}

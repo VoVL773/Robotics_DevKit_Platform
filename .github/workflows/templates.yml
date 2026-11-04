@@ -31,3 +31,18 @@ jobs:
         run: |
           source /opt/ros/jazzy/setup.bash
           ROBOT_CLI_RUN_SMOKE=1 /tmp/rdk-venv/bin/python -m pytest -q rdk/tests/test_smoke.py -k ros
+
+  environment-cpu:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        ros: [humble, jazzy]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e './rdk[dev]'
+      - name: Locked CPU container build and template verification
+        run: robot-cli env verify ros2-${{ matrix.ros }}-dev --container --workspace .

@@ -21,6 +21,8 @@ def test_installed_wheel_contains_all_templates(tmp_path):
     with ZipFile(wheel) as archive:
         assert not any('__pycache__' in name or name.endswith('.pyc') for name in archive.namelist())
         assert 'rdk_templates/pytorch-training/.gitignore' in archive.namelist()
+        assert 'rdk_cli/environments/assets/ros2-humble-dev.baseline.json' in archive.namelist()
+        assert 'rdk_cli/environments/assets/ros2-jazzy-dev.baseline.json' in archive.namelist()
     target = tmp_path / 'installed'
     result = subprocess.run([sys.executable, '-m', 'pip', 'install', '--no-deps', '--target', str(target), str(wheel)],
                             capture_output=True, text=True, timeout=60)
@@ -32,12 +34,15 @@ from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 import rdk_cli.main as cli
 from rdk_cli.project_files import render_template
+from rdk_cli.environments.context import ASSETS
+assert ASSETS.is_relative_to(Path(sys.argv[1]))
+assert (ASSETS / 'Dockerfile').is_file()
 import rdk_cli.tui as tui
 assert Path(tui.__file__).is_relative_to(Path(sys.argv[1]))
 from rdk_cli import template_store as store
 assert Path(cli.__file__).is_relative_to(Path(sys.argv[1]))
 assert store.BUILTIN_ROOT.is_relative_to(Path(sys.argv[1]))
-assert len(store.inventory()) == 4
+assert len(store.inventory()) == 7
 for record in store.inventory():
     values = store.parameters(record, {'package_name': 'wheel_demo'})
     values.update(template_id=record['name'], template_version=record['version'],

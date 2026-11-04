@@ -73,6 +73,16 @@ def compose_workbench() -> ComposeResult:
                         yield Checkbox('生成 GitHub Actions CI', id='ci')
                         yield Checkbox('构建并执行冒烟测试（需提前安装依赖）', id='smoke')
                         yield Checkbox('成功后自动退出', value=True, id='auto-exit')
+                        yield Static('同发行版本机直接创建；环境不符时配置或复用容器。', classes='hint')
+                        with Collapsible(title='容器环境 / 已有容器', collapsed=True, id='container-settings'):
+                            yield Checkbox('使用容器创建和构建', id='use-container')
+                            yield Button('读取已有容器', id='scan-containers')
+                            yield Select([('新建独立开发容器', 'new')], value='new', allow_blank=False, id='existing-container')
+                            yield Static('', id='container-report', markup=False)
+                            yield Label('新建容器名（留空自动命名）')
+                            yield Input(placeholder='rdk-humble-demo', id='container-name')
+                            yield Label('宿主机挂载目录（留空使用生成位置 → /workspace）')
+                            yield Input(placeholder='须包含项目生成位置；已有容器使用既有挂载', id='container-mount')
                         yield Static('', id='project-error', markup=False)
                     with Horizontal(classes='buttons', id='project-actions'):
                         yield Button('创建项目', variant='primary', id='create-project')
@@ -116,7 +126,7 @@ def compose_workbench() -> ComposeResult:
         with TabPane('环境检查', id='env-tab'):
             with VerticalScroll():
                 yield Static('当前终端环境', classes='heading')
-                yield Static('ROS 项目需要 Ubuntu 24.04 + Jazzy；PyTorch 创建无需 ROS。', classes='hint')
+                yield Static('Humble 对应 Ubuntu 22.04；Jazzy 对应 Ubuntu 24.04；跨版本可使用容器。', classes='hint')
                 yield Static('', id='environment-report', markup=False)
                 yield Button('重新检查', id='check-environment', variant='primary')
         with TabPane('构建日志', id='logs-tab'):

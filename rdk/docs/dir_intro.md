@@ -8,7 +8,17 @@ rdk/
 │   ├── commands/
 │   │   ├── common.py             命令错误展示
 │   │   ├── projects.py           项目命令：参数转换、调用服务、展示结果
+│   │   ├── environments.py      env 命令、诊断报告和结果展示
 │   │   └── templates.py          模板管理命令
+│   ├── environments/
+│   │   ├── profiles.py           Humble/Jazzy CPU/GPU 版本矩阵
+│   │   ├── doctor.py             OS/Python/ROS/Docker/GPU 分路线诊断
+│   │   ├── discovery.py          已有容器只读探测、挂载路径映射
+│   │   ├── compatibility.py      模板结构化兼容声明校验
+│   │   ├── context.py            共享基线、环境锁与构建上下文导出
+│   │   ├── containers.py         镜像/容器生命周期、终端与真实验收
+│   │   ├── projects.py           项目容器路由、已有容器隔离 CLI
+│   │   └── assets/               Dockerfile、CPU 基线摘要、Python 锁、公钥与变更记录
 │   ├── wizard.py                 兼容旧终端的逐步问答，复用命令适配器
 │   ├── tui.py                    工作台交互控制、表单与任务状态
 │   ├── tui_layout.py             Textual 控件树、样式与布局
@@ -24,11 +34,13 @@ rdk/
 │   ├── ros2-python/              Python 节点、参数、Launch、pytest
 │   ├── ros2-cpp/                 C++17 节点、参数、Launch、gtest
 │   ├── ros2-bringup/             多节点启动、机器人配置与测试
+│   ├── ros2-*-1.1/              双发行版模板（保留原有 1.0 目录）
 │   └── pytorch-training/         Dataset、模型、训练、评测与测试
 ├── tests/
 │   ├── test_cli.py               命令和 ROS 环境检查
 │   ├── test_templates.py         生命周期、版本、参数、导入、问答向导
 │   ├── test_project_service.py   无界面依赖、预检无副作用、CLI/服务生成一致性
+│   ├── test_environments.py      环境矩阵、容器路由、已有挂载、锁与可选 GPU
 │   ├── test_packaging.py         wheel 安装后的资源定位与生成
 │   ├── test_smoke.py             真实 ROS 构建运行与 CPU 训练评测
 │   └── test_tui.py               控件交互、真实生成、取消与退出清理
@@ -76,3 +88,8 @@ ROS 项目先由 `ros2 pkg create` 创建标准骨架，再叠加模板内容；
 
 仓库根目录 `.github/workflows/templates.yml` 包含 CLI/wheel、CPU PyTorch 和 ROS Jazzy 自动验证。
 团队模板存储在用户数据目录，独立于源码仓库；使用方式见 `template-management.md`。
+
+环境管理独立在 `environments/`，由命令和 TUI 调用；具体流程见 [环境管理](environments.md)。
+参数/路径预检可以通过 `prepare_project(..., check_host=False)` 返回计划，供适配层决定本机或容器路线；
+实际在本机执行前仍必须通过环境检查。容器内部固定 `--host-only`，防止递归路由。
+模板 `1.0.0` 继续保留，`1.1.0` 的文档和 CI 根据 `ros_distro` 生成。

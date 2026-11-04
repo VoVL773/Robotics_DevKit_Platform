@@ -79,7 +79,7 @@ def test_reject_existing_directory(tmp_path):
 
 @pytest.mark.parametrize('arguments, expected', [
     (['--node-name', 'bad-name'], 'node_name'),
-    (['--ros-distro', 'humble'], 'ros_distro'),
+    (['--ros-distro', 'rolling'], 'ros_distro'),
     (['--maintainer', "bad'quote"], 'maintainer'),
     (['--param', 'unknown=1'], '未知'),
     (['--param', 'node_name=a', '--param', 'node_name=b'], '不能重复'),

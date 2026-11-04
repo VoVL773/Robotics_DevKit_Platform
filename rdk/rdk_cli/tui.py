@@ -1,5 +1,6 @@
 """Textual 终端工作台：表单与模板管理复用现有逻辑，耗时任务运行在独立进程组中。"""
 
+import asyncio
 import importlib.metadata
 import json
 import shlex
@@ -11,10 +12,13 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
 from textual.widgets import (
-    Button, Checkbox, DataTable, Input, Label,
+    Button, Checkbox, Collapsible, DataTable, Input, Label,
     LoadingIndicator, RichLog, Select, Static, TabbedContent,
 )
 
+from rdk_cli.environments.discovery import discover
+from rdk_cli.environments.profiles import EnvironmentError, get_profile
+from rdk_cli.environments.projects import validate_mount
 from rdk_cli.process_runner import ProcessRunner
 from rdk_cli.project_service import ProjectRequest, prepare_project
 from rdk_cli.tui_layout import WORKBENCH_CSS, compose_workbench
@@ -53,6 +57,7 @@ class DevKitApp(App[str]):
         self.parameter_keys = []
         self.last_project = None
         self.last_result = None
+        self.container_candidates = []
 
     def compose(self) -> ComposeResult:
         yield from compose_workbench()
@@ -74,7 +79,7 @@ class DevKitApp(App[str]):
     async def refresh_templates(self):
         try:
             self.records = store.inventory()
-        except (store.TemplateError, environment.EnvironmentCheckError, OSError) as error:
+        except (store.TemplateError, environment.EnvironmentCheckError, EnvironmentError, OSError) as error:
             self.message(str(error), error=True)
             return
         available = [record for record in self.records if record['enabled'] and record['status'] == 'published']
@@ -147,6 +152,9 @@ class DevKitApp(App[str]):
             widget.disabled = directory or self.busy
             if directory:
                 widget.value = False
+        container_toggle = self.query_one('#use-container', Checkbox)
+        container_toggle.disabled = not record['kind'].startswith('ros2_') or self.busy
+        container_toggle.value = False
         self.query_one('#create-project', Button).disabled = self.busy
         self.query_one('#project-error', Static).update('')
 
@@ -181,7 +189,9 @@ class DevKitApp(App[str]):
         self.notify(text, severity='error' if error else 'information', timeout=5)
 
     def refresh_environment(self):
-        report = environment.environment_status()
+        import os
+        distro = os.environ.get('ROS_DISTRO', 'jazzy')
+        report = environment.environment_status(distro if distro in {'humble', 'jazzy'} else 'jazzy')
         lines = [f"系统：{report['system']}", f"Python：{sys.version.split()[0]}",
                  f"ROS_DISTRO：{report['distro'] or '未加载'}", f"ROS_VERSION：{report['ros_version'] or '未加载'}",
                  f"ros2：{report['ros_command'] or '未找到'}"]
@@ -192,7 +202,7 @@ class DevKitApp(App[str]):
         except importlib.metadata.PackageNotFoundError:
             lines.append('PyTorch：未安装（不影响创建项目）')
         lines.append('\n' + ('✓ ROS 创建环境符合要求' if report['ready'] else
-                              'ROS 创建环境未就绪：需 Ubuntu 24.04 + Jazzy，并 source /opt/ros/jazzy/setup.bash'))
+                              'ROS 环境未就绪：Humble 需 Ubuntu 22.04，Jazzy 需 Ubuntu 24.04；可在项目配置中读取/创建容器'))
         lines.append('创建后构建测试仍需安装模板声明的依赖，以上检查不替代实际运行验证。')
         self.query_one('#environment-report', Static).update('\n'.join(lines))
 
@@ -215,7 +225,28 @@ class DevKitApp(App[str]):
             ci=self.query_one('#ci', Checkbox).value,
             smoke_test=self.query_one('#smoke', Checkbox).value,
         )
-        plan = prepare_project(request)
+        use_container = self.query_one('#use-container', Checkbox).value
+        plan = prepare_project(request, check_host=False)
+        if plan.kind.startswith('ros2_'):
+            if use_container:
+                selection = self.query_one('#existing-container', Select).value
+                if selection == 'new':
+                    container_name = self.query_one('#container-name', Input).value.strip() or f"rdk-{plan.values['ros_distro']}-{name}"
+                    mount = self.query_one('#container-mount', Input).value.strip() or str(plan.output_path)
+                    validate_mount(plan, mount, container_name)
+                    self.query_one('#container-name', Input).value = container_name
+                    self.query_one('#container-mount', Input).value = mount
+                else:
+                    candidate = next((c for c in self.container_candidates if c.name == selection), None)
+                    if not candidate or not candidate.mapped_path(plan.output_path):
+                        raise EnvironmentError('所选已有容器没有覆盖输出位置的可写挂载；请调整生成位置或选择新建容器')
+            else:
+                try:
+                    environment.check_environment(plan.values.get('ros_distro', plan.record['ros_distro'][0]))
+                except environment.EnvironmentCheckError as error:
+                    self.query_one('#use-container', Checkbox).value = True
+                    self.query_one('#container-settings', Collapsible).collapsed = False
+                    raise EnvironmentError(str(error) + '\n已切换容器模式；请检查容器名、挂载或已有容器，再点击创建项目。') from error
         return {'package_name': name, **supplied}, output, plan.project_path
 
     @on(Button.Pressed)
@@ -223,6 +254,9 @@ class DevKitApp(App[str]):
         identifier = event.button.id
         if identifier in {'view-logs', 'back-to-form'}:
             self.show_tab('logs-tab' if identifier == 'view-logs' else 'create-tab')
+            return
+        if identifier == 'scan-containers':
+            await self.scan_existing_containers()
             return
         if identifier == 'cancel-task':
             await self.cancel_task()
@@ -244,6 +278,13 @@ class DevKitApp(App[str]):
                 for field, flag in [('git', '--git'), ('ci', '--ci'), ('smoke', '--smoke-test')]:
                     if self.query_one(f'#{field}', Checkbox).value:
                         command.append(flag)
+                if self.query_one('#use-container', Checkbox).value:
+                    existing = self.query_one('#existing-container', Select).value
+                    if existing == 'new':
+                        command.extend(['--container', '--container-name', self.query_one('#container-name', Input).value,
+                                        '--mount', self.query_one('#container-mount', Input).value])
+                    else:
+                        command.extend(['--reuse-container', str(existing)])
                 self.last_project = destination
                 self.start_job(command, '创建项目', project=True,
                                auto_exit=self.query_one('#auto-exit', Checkbox).value)
@@ -272,12 +313,41 @@ class DevKitApp(App[str]):
                     if value:
                         command.extend([flag, value])
                 self.start_job(command, '导入模板')
-        except (store.TemplateError, environment.EnvironmentCheckError, OSError) as error:
+        except (store.TemplateError, environment.EnvironmentCheckError, EnvironmentError, OSError) as error:
             if identifier == 'create-project':
                 self.query_one('#project-error', Static).update(str(error))
                 self.notify(str(error), severity='error')
+                if isinstance(error, EnvironmentError) and self.query_one('#use-container', Checkbox).value:
+                    await self.scan_existing_containers()
             else:
                 self.message(str(error), error=True)
+
+    async def scan_existing_containers(self):
+        if self.busy:
+            return
+        try:
+            if not self.project_record or not self.project_record['kind'].startswith('ros2_'):
+                raise EnvironmentError('请先选择 ROS 模板及发行版')
+            widget = self.query_one('#param-ros_distro') if 'ros_distro' in self.parameter_keys else None
+            ros = widget.value if widget else self.project_record['ros_distro'][0]
+            self.query_one('#container-report', Static).update('正在读取已有容器（不会自动启动）…')
+            self.container_candidates = await asyncio.to_thread(discover, get_profile(f'ros2-{ros}-dev'))
+            choices = [('新建独立开发容器', 'new')]
+            compatible = [c for c in self.container_candidates if c.compatible]
+            choices.extend((f"{c.name} · {'运行中' if c.running else '已停止，选择后启动'}", c.name) for c in compatible)
+            selector = self.query_one('#existing-container', Select)
+            previous = selector.value
+            selector.set_options(choices)
+            selector.value = previous if previous in [value for _, value in choices] else 'new'
+            lines = []
+            for candidate in self.container_candidates:
+                lines.append(f"{candidate.name}：{'候选' if candidate.compatible else '不匹配'}，Ubuntu {candidate.ubuntu}，{candidate.ros or '无对应 ROS'}")
+                for mount in candidate.mounts:
+                    if mount['type'] == 'bind':
+                        lines.append(f"  {mount['source']} → {mount['target']} ({'rw' if mount['writable'] else 'ro'})")
+            self.query_one('#container-report', Static).update('\n'.join(lines) or '未发现可读取容器；可新建。若 Docker 权限不足，请运行 env doctor 查看修复建议。')
+        except (EnvironmentError, OSError) as error:
+            self.query_one('#container-report', Static).update(str(error))
 
     def set_busy(self, busy):
         if busy:
@@ -296,6 +366,7 @@ class DevKitApp(App[str]):
             self.query_one('#create-project', Button).disabled = self.project_record is None
             for field in ('ci', 'smoke'):
                 self.query_one(f'#{field}', Checkbox).disabled = directory
+            self.query_one('#use-container', Checkbox).disabled = self.project_record is None or not self.project_record['kind'].startswith('ros2_')
 
     def start_job(self, command, title, project=False, auto_exit=False):
         self.cancel_requested = False

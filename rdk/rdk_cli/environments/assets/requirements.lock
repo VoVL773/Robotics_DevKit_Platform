@@ -1,0 +1,23 @@
+# CLI + test tools: Python 3.10 / 3.12, linux/amd64. Install with --no-deps.
+typer==0.15.1
+click==8.1.8
+shellingham==1.5.4
+rich==13.9.4
+textual==1.0.0
+markdown-it-py==3.0.0
+mdurl==0.1.2
+linkify-it-py==2.0.3
+uc-micro-py==1.0.3
+Pygments==2.18.0
+mdit-py-plugins==0.4.2
+platformdirs==4.3.6
+typing_extensions==4.12.2
+pytest==8.3.4
+iniconfig==2.0.0
+packaging==24.2
+pluggy==1.5.0
+exceptiongroup==1.2.2; python_version < '3.11'
+tomli==2.2.1; python_version < '3.11'
+setuptools==75.6.0
+wheel==0.45.1
+pip==24.3.1

@@ -73,8 +73,15 @@ def validate_manifest(manifest):
         value = manifest.get(field)
         if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
             raise TemplateError(f'{field} 必须是字符串列表')
-    if manifest['kind'].startswith('ros2_') and manifest['ros_distro'] != ['jazzy']:
-        raise TemplateError('当前 ROS 生成器仅支持 Jazzy，ros_distro 必须为 ["jazzy"]')
+    if manifest['kind'].startswith('ros2_') and (not manifest['ros_distro'] or
+            not set(manifest['ros_distro']) <= {'humble', 'jazzy'}):
+        raise TemplateError('ROS 生成器仅支持 humble/jazzy，ros_distro 必须为其非空子集')
+    if 'compatibility' in manifest:
+        from rdk_cli.environments.compatibility import validate_compatibility
+        try:
+            validate_compatibility(manifest['compatibility'])
+        except ValueError as error:
+            raise TemplateError(str(error)) from error
     parameters = manifest.get('parameters')
     if not isinstance(parameters, dict):
         raise TemplateError('parameters 必须是对象')

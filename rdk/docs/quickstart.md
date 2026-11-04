@@ -40,16 +40,16 @@ robot-cli --wizard
 不支持全屏交互的终端或重定向环境请使用 `--wizard` 或子命令。
 `--help` 查看所有非交互子命令，`--version` 查看 CLI 版本。
 
-ROS 生成与构建需要 Ubuntu 24.04 + ROS 2 Jazzy。
+ROS 模板 1.1 支持 Ubuntu 22.04 + Humble 或 Ubuntu 24.04 + Jazzy；跨发行版使用容器，见 [环境管理](environments.md)。
 模板管理与 PyTorch 创建不检查 ROS；`--help` 查看所有非交互子命令，`--version` 查看 CLI 版本。
 
 ## 四个 P0 模板
 
 | 名称 | 生成内容 | 运行环境 |
 | --- | --- | --- |
-| `ros2-cpp` | C++17 节点、CMake、参数、Launch、gtest、文档 | Ubuntu 24.04 + Jazzy |
-| `ros2-python` | Python 节点、ament 打包、参数、Launch、pytest、文档 | Ubuntu 24.04 + Jazzy |
-| `ros2-bringup` | talker/listener 启动、命名空间、机器人配置、测试、文档 | Ubuntu 24.04 + Jazzy |
+| `ros2-cpp` | C++17 节点、CMake、参数、Launch、gtest、文档 | Ubuntu 22.04 + Humble / Ubuntu 24.04 + Jazzy（模板 1.1） |
+| `ros2-python` | Python 节点、ament 打包、参数、Launch、pytest、文档 | Ubuntu 22.04 + Humble / Ubuntu 24.04 + Jazzy（模板 1.1） |
+| `ros2-bringup` | talker/listener 启动、命名空间、机器人配置、测试、文档 | Ubuntu 22.04 + Humble / Ubuntu 24.04 + Jazzy（模板 1.1） |
 | `pytorch-training` | Dataset、MLP、Trainer、配置、训练、评测、测试 | Python >= 3.10 + torch >= 2.2 |
 
 四个模板初始版本均为 `1.0.0`。`ros2-cpp-package`、`ros2-cpp-template` 是 `ros2-cpp` 的别名，

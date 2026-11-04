@@ -29,7 +29,7 @@ def test_ros_build_test_and_launch(template, tmp_path):
     # 显式指定新节点名，验证 CMake、入口和 Launch 同步替换。
     arguments = [sys.executable, '-m', 'rdk_cli.main', 'project', 'create', template,
                  '--name', name, '--output', str(workspace / 'src'), '--maintainer', 'Test Team',
-                 '--license', 'MIT', '--ci', '--git', '--smoke-test']
+                 '--license', 'MIT', '--ros-distro', env.get('ROS_DISTRO', 'jazzy'), '--ci', '--git', '--smoke-test']
     if template != 'ros2-bringup':
         arguments += ['--node-name', 'demo_node']
     run(arguments, tmp_path, env)

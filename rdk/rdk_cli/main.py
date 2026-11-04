@@ -2,12 +2,15 @@
 import typer
 
 from rdk_cli.commands.common import fail
+from rdk_cli.commands.environments import app as env_app, doctor
 from rdk_cli.commands.projects import app as project_app
 from rdk_cli.commands.templates import app as template_app
 
 app = typer.Typer(help='robot-cli v1.1：版本化模板管理与 ROS 2 / PyTorch 项目生成。')
 app.add_typer(template_app, name='template')
 app.add_typer(project_app, name='project')
+app.add_typer(env_app, name='env')
+app.command('doctor')(doctor)
 
 
 @app.callback(invoke_without_command=True)

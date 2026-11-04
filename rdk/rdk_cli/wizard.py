@@ -101,6 +101,7 @@ def interactive_wizard():
             license=None, ros_distro=None,
             param=[f'{key}={value}' for key, value in supplied.items()],
             git=initialize_git, ci=create_ci, smoke_test=run_smoke,
+            container=False, container_name=None, mount=None, env_root='.robot-cli/environments', host_only=False, reuse_container=None,
         )
         ui.notice('✓ 流程完成，退出 CLI。', 'bold green')
         return

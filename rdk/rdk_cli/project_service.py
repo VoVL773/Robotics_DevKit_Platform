@@ -72,7 +72,7 @@ class ProjectPlan:
         return []
 
 
-def prepare_project(request: ProjectRequest) -> ProjectPlan:
+def prepare_project(request: ProjectRequest, *, check_host: bool = True) -> ProjectPlan:
     """只检查并返回生成计划；参数或环境不合法时不创建任何目录。"""
     record = store.resolve(request.template, usable=True)
     if not re.fullmatch(r'[a-z](?:[a-z0-9_]*[a-z0-9])?', request.name):
@@ -91,8 +91,8 @@ def prepare_project(request: ProjectRequest) -> ProjectPlan:
     project_path = output_path / request.name
     if project_path.exists() or project_path.is_symlink():
         raise store.TemplateError(f'目标路径已经存在：{project_path}')
-    if record['kind'].startswith('ros2_'):
-        check_environment()
+    if check_host and record['kind'].startswith('ros2_'):
+        check_environment(values.get('ros_distro', record['ros_distro'][0]))
     return ProjectPlan(request, record, values, output_path, project_path)
 
 
@@ -125,7 +125,7 @@ def create_project(plan: ProjectPlan) -> Path:
     if request.ci:
         workflow = plan.project_path / '.github/workflows/smoke.yml'
         workflow.parent.mkdir(parents=True, exist_ok=True)
-        workflow.write_text(workflow_for(plan.kind), encoding='utf-8')
+        workflow.write_text(workflow_for(plan.kind, values.get('ros_distro', 'jazzy')), encoding='utf-8')
     if request.initialize_git:
         subprocess.run(['git', 'init', str(plan.project_path)], check=True)
     return plan.project_path
@@ -134,7 +134,8 @@ def create_project(plan: ProjectPlan) -> Path:
 def run_smoke_tests(plan: ProjectPlan) -> None:
     """执行已有依赖下的 ROS 构建测试或 CPU 训练评测，不负责安装依赖。"""
     if plan.kind.startswith('ros2_'):
-        subprocess.run(['colcon', 'build', '--symlink-install', '--packages-select', plan.request.name],
+        subprocess.run(['colcon', 'build', '--symlink-install', '--packages-select', plan.request.name,
+                        '--cmake-args', '-DPython3_EXECUTABLE=/usr/bin/python3'],
                        cwd=plan.workspace, check=True)
         script = ('source install/setup.bash && colcon test --packages-select ' + shlex.quote(plan.request.name)
                   + ' --event-handlers console_direct+ && colcon test-result --verbose')

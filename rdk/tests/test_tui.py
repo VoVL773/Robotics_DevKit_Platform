@@ -50,7 +50,7 @@ def test_tui_loads_templates_switches_forms_and_keeps_input_on_refresh():
         app = DevKitApp()
         async with app.run_test(size=(120, 42)) as pilot:
             await pilot.pause()
-            assert len(app.records) == 4
+            assert len(app.records) == 7
             assert app.project_record['name'] == 'pytorch-training'
             app.query_one('#param-package_name', Input).value = 'keep_me'
             await pilot.press('f5')

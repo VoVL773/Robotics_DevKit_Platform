@@ -26,11 +26,22 @@ robot-cli project create ros2-cpp-package@1.0.0 \
   --output ~/demo_ws/src --git --ci --smoke-test
 ```
 
-ROS 模板要求 Ubuntu 24.04 + ROS 2 Jazzy；模板管理与 PyTorch 项目创建无需 ROS。
+ROS 模板 1.1 支持 Ubuntu 22.04 + Humble、Ubuntu 24.04 + Jazzy；本机不匹配时提示选择已有容器或新建容器，填写名称和挂载目录。模板管理与 PyTorch 项目创建无需 ROS。
 PyTorch 示例在 CPU 上运行，无需下载数据。桌面图形界面及 P1 模板留待后续实现。
 
 - [快速上手](rdk/docs/quickstart.md)：向导、项目创建、构建与训练。
 - [模板管理](rdk/docs/template-management.md)：版本、参数、启停、评审与 Git/注册表导入。
+- [环境管理](rdk/docs/environments.md)：doctor、CPU 容器、Dev Container、依赖锁与可选 GPU。
 - [目录结构](rdk/docs/dir_intro.md)：源码、资源与测试。
 - [验证记录](rdk/docs/verification.md)：本地验证范围与执行方法。
 - [任务要求](任务要求.md)和[实施路线](实施方案与开发路线.md)：阶段规划；其中早期现状描述是历史基线，当前功能以本 README 为准。
+
+环境管理（默认 CPU，GPU 按需选择）：
+
+```bash
+robot-cli env list
+robot-cli env doctor
+robot-cli env containers ros2-humble-dev
+robot-cli env init all --workspace .
+robot-cli env shell ros2-humble-dev
+```

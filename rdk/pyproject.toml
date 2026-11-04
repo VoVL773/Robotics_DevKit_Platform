@@ -7,7 +7,7 @@ name = "robot-cli"
 version = "1.1.0"
 description = "rdk 机器人开发工具链命令行：查看模板、创建 ROS 2 与 PyTorch 项目"
 requires-python = ">=3.10"
-dependencies = ["typer", "rich>=13", "textual>=1.0,<2"]
+dependencies = ["typer", "rich>=13", "textual>=1.0,<2", "packaging>=24"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
@@ -16,12 +16,13 @@ dev = ["pytest"]
 robot-cli = "rdk_cli.main:app"
 
 [tool.setuptools]
-packages = ["rdk_cli", "rdk_cli.commands", "rdk_templates"]
+packages = ["rdk_cli", "rdk_cli.commands", "rdk_cli.environments", "rdk_templates"]
 
 [tool.setuptools.package-dir]
 rdk_templates = "templates"
 
 [tool.setuptools.package-data]
+rdk_cli = ["environments/assets/*"]
 rdk_templates = ["**/*", "**/.gitignore"]
 
 [tool.setuptools.exclude-package-data]

@@ -11,7 +11,7 @@ PyTorch CPU 版本为 2.15.0+cpu。以下为实际执行结果，不代表远端
 rdk/.venv/bin/python -m pytest -q rdk/tests
 ```
 
-结果（含全屏 TUI 回归）：**56 passed, 4 skipped**。四项真实依赖冒烟测试默认跳过，已用下面的独立命令实际执行。
+结果（含全屏 TUI 回归）：**77 passed, 4 skipped**。四项真实依赖冒烟测试默认跳过，已用下面的独立命令实际执行。
 
 覆盖范围：
 
@@ -63,7 +63,7 @@ TUI 通过 Textual 无头终端操作测试，并导出截图检查布局；实�
 已提供 `.github/workflows/templates.yml`，分别运行 CLI/wheel、CPU 与 ROS Jazzy 验证。
 项目创建时 `--ci` 可生成独立项目的 GitHub Actions 文件。此次未推送或触发远端 CI。
 
-本次交付终端 CLI，桌面窗口后续实现。P1 模板、身份认证审批服务、断点恢复/导出、GPU 与真实机器人验证不在此次交付范围。
+本次交付终端 CLI，桌面窗口后续实现。P1 模板、身份认证审批服务、断点恢复/导出、GPU 实机认证与真实机器人验证不在此次交付范围。
 
 ## 模块拆分回归（2026-11-05）
 
@@ -71,5 +71,40 @@ TUI 通过 Textual 无头终端操作测试，并导出截图检查布局；实�
 CI 内容、TUI 布局和后台进程管理分别归入对应模块，依赖方向见 `dir_intro.md`。
 CLI 与 TUI 统一使用 `prepare_project`，环境模块不再依赖 Typer。
 
-此次拆分后重新执行了上述完整测试（56 passed, 4 skipped）和四个真实模板冒烟（4 passed），
+此前模块拆分后执行了完整测试（56 passed, 4 skipped）和四个真实模板冒烟（4 passed），
 并通过 `compileall`、`git diff --check`。完整测试包含 wheel 安装验证及原有 TUI 布局、取消和退出回归。
+
+## 开发环境管理验收（2026-11-05）
+
+环境管理加入后的完整测试：**77 passed, 4 skipped**。包含 wheel 内环境资产打包、
+默认 CPU 不探测 GPU、init all 只准备 CPU、双发行版校验、共享基线不解析 latest、锁篡改拒绝、
+已有容器只读读取、挂载映射、TUI 环境差异提示、不同宿主机 UID/GID 等回归。
+
+| 路线 | 实际结果 |
+| --- | --- |
+| `env init all` | 创建 Humble CPU 开发容器；Jazzy 宿主机合格，跳过 Jazzy 容器 |
+| `env verify ros2-jazzy-dev` | 本机生成、构建、测试 C++ / Python / Bringup，全部通过 |
+| `env verify ros2-humble-dev` | 最终容器内生成、构建、测试三种 ROS 包，全部通过 |
+| Jazzy 完整模板冒烟 | 4 passed：三类 ROS 的 Launch/通信，以及 CPU 训练/独立评测 |
+| Humble ROS 完整冒烟 | 3 passed, 1 deselected：三类 ROS 的构建、Launch/通信 |
+| 新建容器的项目路由 | 自定义容器名、挂载、C++ 包生成、Git/CI、构建测试通过 |
+| 复用已有容器路由 | 既有挂载路径映射、/tmp 隔离 CLI、Python 包生成和构建测试通过 |
+| 真实交互终端 | 环境差异确认 → 读取候选 → 输入容器名和挂载 → 生成，通过 |
+| 本机/容器 `env shell` | 分别进入 Jazzy 和 Humble；容器 whoami / 用户组解析正确 |
+| 可选锁定 CPU PyTorch 镜像 | Humble / Python 3.10 / torch 2.6.0+cpu，ROS 测试、训练与评测通过 |
+| 最终容器内 TUI | 80×24 无头终端启动并加载七个模板版本通过 |
+| Dev Container 初始化命令 | 在最终 Humble 镜像中加载 ROS 并运行 CLI 版本命令通过；未启动 VS Code Dev Containers 扩展 |
+
+可选 CPU 训练镜像 accuracy 为 0.9807692，loss 为 0.0425470，训练记录与加载 checkpoint 评测一致。
+默认 ROS CPU 镜像不安装 PyTorch；GPU 仍是独立可选配置。
+本机 GPU 为 RTX 4060 Laptop，驱动 595.99.02 满足配置下限，但 Docker 未注册 NVIDIA runtime，
+当前宿主机 PyTorch 为 CPU 版；**未构建/验收 GPU 镜像，也未进行 GPU 训练或仿真器认证**。
+
+已有 `ican-delivery` 容器的 Ubuntu 22.04 / Humble 文件和原有挂载已成功只读识别，保持停止状态。
+本轮功能测试使用工具自行创建的容器，未启动或修改原有业务容器。
+最终保留已验证的 Humble CPU 开发容器，其余本轮临时测试容器已清理。
+实际环境锁、镜像 ID 与验收结果位于 `.robot-cli/environments/`；可选 CPU 训练的历史验收位于
+`.robot-cli/training-environments/`。生成测试项目保留在忽略目录 `.robot-cli/`，不进入源码提交。
+
+两套 CPU 基础镜像 registry digest 与 APT 事务已固定并随 wheel 分发；GPU 配置需显式生成锁并评审。
+已新增双发行版 CPU 环境 CI job，本次未推送或触发远端 CI。

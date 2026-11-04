@@ -1,0 +1,18 @@
+{
+  "profile": {
+    "name": "ros2-humble-dev",
+    "ros": "humble",
+    "ubuntu": "22.04",
+    "python": "3.10",
+    "base": "ros:humble-ros-base",
+    "gpu": false,
+    "cuda": null,
+    "driver_min": null,
+    "torch": null,
+    "version": "1.0.0",
+    "architecture": "amd64"
+  },
+  "base_digest": "ros@sha256:d9bcf2e6f72df127fdee07048c2e87b1b4b9a59a74af0592f4489fc2844aa855",
+  "apt": "python3-pip=22.0.2+dfsg-1ubuntu0.7\npython3-pip-whl=22.0.2+dfsg-1ubuntu0.7\npython3-setuptools-whl=59.6.0-1.2ubuntu0.22.04.3\npython3-venv=3.10.6-1~22.04.1\npython3-wheel=0.37.1-2ubuntu0.22.04.1\npython3.10-venv=3.10.12-1~22.04.18\nros-humble-demo-nodes-cpp=0.20.10-1jammy.20260907.223640\nros-humble-example-interfaces=0.9.3-2jammy.20260907.205601\n",
+  "key_sha256": "4a91c49af0d6f0016108b93698782b596c27ccd836937e18e0e36c3347dc602f"
+}

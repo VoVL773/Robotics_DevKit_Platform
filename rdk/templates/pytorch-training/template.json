@@ -31,5 +31,32 @@
       "required": true,
       "pattern": "[\\w .@+\\-]+"
     }
+  },
+  "compatibility": {
+    "platforms": [
+      {
+        "os": "ubuntu",
+        "version": "22.04",
+        "ros": null,
+        "python": ">=3.10,<3.13"
+      },
+      {
+        "os": "ubuntu",
+        "version": "24.04",
+        "ros": null,
+        "python": ">=3.10,<3.13"
+      }
+    ],
+    "cuda": {
+      "required": false,
+      "versions": [
+        "12.6"
+      ],
+      "driver_min": "560.35.05"
+    },
+    "frameworks": {
+      "torch": ">=2.2,<3"
+    },
+    "simulators": []
   }
 }
