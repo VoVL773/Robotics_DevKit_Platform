@@ -2,6 +2,7 @@
 
 import json
 import keyword
+import math
 import os
 import re
 import shutil
@@ -80,7 +81,7 @@ def validate_manifest(manifest):
     for key, spec in parameters.items():
         if not re.fullmatch(r'[a-z][a-z0-9_]*', key) or not isinstance(spec, dict):
             raise TemplateError(f'无效的参数定义：{key}')
-        if spec.get('type') not in {'string', 'integer', 'number', 'boolean'}:
+        if not isinstance(spec.get('type'), str) or spec['type'] not in {'string', 'integer', 'number', 'boolean'}:
             raise TemplateError(f'参数 {key} 的 type 不受支持')
         if 'required' in spec and not isinstance(spec['required'], bool):
             raise TemplateError(f'参数 {key} 的 required 必须为布尔值')
@@ -91,16 +92,21 @@ def validate_manifest(manifest):
                 raise TemplateError(f'参数 {key} 的正则表达式无效') from error
         if 'enum' in spec and (not isinstance(spec['enum'], list) or not spec['enum']):
             raise TemplateError(f'参数 {key} 的 enum 必须为非空列表')
+        for bound in ('minimum', 'maximum'):
+            if bound in spec and (type(spec[bound]) not in (int, float) or not math.isfinite(spec[bound])):
+                raise TemplateError(f'参数 {key} 的 {bound} 必须是有限数值')
         if 'default' in spec:
             validate_value(key, spec['default'], spec)
+    if 'package_name' not in parameters or parameters['package_name']['type'] != 'string':
+        raise TemplateError('parameters 必须包含 string 类型的 package_name')
     return manifest
 
 
 def state():
     path = store_root() / 'state.json'
     result = read_json(path) if path.exists() else {}
-    if not isinstance(result, dict):
-        raise TemplateError('模板启停状态文件必须是 JSON 对象')
+    if not isinstance(result, dict) or any(not isinstance(value, bool) for value in result.values()):
+        raise TemplateError('模板启停状态文件必须是布尔值组成的 JSON 对象')
     return result
 
 
@@ -157,12 +163,16 @@ def validate_value(key, value, spec):
     expected = {'string': str, 'integer': int, 'number': (int, float), 'boolean': bool}[spec['type']]
     if not isinstance(value, expected) or (spec['type'] in {'integer', 'number'} and isinstance(value, bool)):
         raise TemplateError(f'参数 {key} 必须为 {spec["type"]}')
+    if spec['type'] == 'number' and not math.isfinite(value):
+        raise TemplateError(f'参数 {key} 必须为有限数值')
     if 'enum' in spec and value not in spec['enum']:
         raise TemplateError(f'参数 {key} 必须是 {spec["enum"]} 之一')
     if 'pattern' in spec and not re.fullmatch(spec['pattern'], str(value)):
         raise TemplateError(f'参数 {key} 不符合格式：{spec["pattern"]}')
     for bound in ('minimum', 'maximum'):
         if bound in spec:
+            if type(spec[bound]) not in (int, float) or not math.isfinite(spec[bound]):
+                raise TemplateError(f'参数 {key} 的 {bound} 必须是有限数值')
             if not isinstance(value, (int, float)) or isinstance(value, bool):
                 raise TemplateError(f'参数 {key} 的数值范围只能用于数字')
             if (bound == 'minimum' and value < spec[bound]) or (bound == 'maximum' and value > spec[bound]):

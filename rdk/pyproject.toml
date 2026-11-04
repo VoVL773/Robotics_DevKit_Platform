@@ -22,7 +22,10 @@ packages = ["rdk_cli", "rdk_templates"]
 rdk_templates = "templates"
 
 [tool.setuptools.package-data]
-rdk_templates = ["**/*"]
+rdk_templates = ["**/*", "**/.gitignore"]
+
+[tool.setuptools.exclude-package-data]
+rdk_templates = ["**/*.pyc", "**/__pycache__/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

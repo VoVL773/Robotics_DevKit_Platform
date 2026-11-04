@@ -2,35 +2,29 @@
 
 ```text
 rdk/
-├── .venv/                 Python 虚拟环境（不提交到 git）
-├── docs/                  文档目录
-│   ├── dir_intro.md       本文件：目录结构说明
-│   └── quickstart.md      快速上手：创建、编译、运行示例包
-├── rdk_cli/               命令行工具源码
-│   ├── __init__.py        标记 rdk_cli 为可导入的包
-│   ├── registry.py        模板登记表：模板名、版本、兼容的 ROS 2 发行版、语言
-│   └── main.py            命令行入口：template list / template info / project create
-├── templates/             模板内容，每个模板一个同名子目录
-│   ├── ros2-python/       Python 模板：目录名和文件内容里的 {{package_name}} 会在生成时替换成包名
-│   ├── ros2-cpp/          C++ 模板（占位，尚未实现）
-│   └── pytorch-training/  PyTorch 训练模板（占位，尚未实现）
-├── tests/                 pytest 测试
-└── pyproject.toml         打包配置、依赖、robot-cli 命令入口
+├── docs/                         使用与验收文档
+├── rdk_cli/
+│   ├── main.py                   命令、终端向导、渲染和项目生成
+│   ├── template_store.py         版本、参数、状态、评审、Git/注册表导入
+│   ├── registry.py               旧登记表导入兼容入口
+│   └── environment.py            ROS 生成所需 Ubuntu/Jazzy 检查
+├── templates/                    以 rdk_templates 包随 wheel 分发
+│   ├── ros2-python/              Python 节点、参数、Launch、pytest
+│   ├── ros2-cpp/                 C++17 节点、参数、Launch、gtest
+│   ├── ros2-bringup/             多节点启动、机器人配置与测试
+│   └── pytorch-training/         合成 Dataset、模型、训练、评测与测试
+├── tests/
+│   ├── test_cli.py               命令和 ROS 环境检查
+│   ├── test_templates.py         生命周期、版本、参数、导入、向导
+│   ├── test_packaging.py         wheel 安装后的资源定位与生成
+│   └── test_smoke.py             真实 ROS 构建运行与 CPU 训练评测
+└── pyproject.toml                v1.1.0 打包配置与入口
 ```
 
-## 命令与代码的对应关系
+每个模板的 `template.json` 是元数据和参数定义的唯一来源。
+ROS 项目先由 `ros2 pkg create` 创建标准骨架，再叠加模板内容；PyTorch 与通用目录模板直接复制渲染。
+替换文件路径与内容的参数占位符后，写入 `.robot-cli.json` 记录确切版本和参数。
+生成的项目不导入 `rdk_cli`，也不读取原始模板路径，可脱离本仓库单独构建和运行。
 
-| 命令 | 函数 | 文件 |
-| --- | --- | --- |
-| `robot-cli template list` | `template_list` | `rdk_cli/main.py` |
-| `robot-cli template info NAME` | `template_info` | `rdk_cli/main.py` |
-| `robot-cli project create TEMPLATE` | `project_create` | `rdk_cli/main.py` |
-
-## 模板是怎么工作的
-
-1. `registry.py` 的 `TEMPLATES` 登记模板元信息，`template list` / `template info` 直接读它。
-2. `project create` 先调用系统里的 `ros2 pkg create` 生成标准软件包骨架。
-3. 再把 `templates/<模板名>/` 下的文件复制进新项目，目录名和文件内容中的
-   `{{package_name}}` 替换成 `--name` 传入的包名。
-
-所以想加一个新模板，只要：在 `registry.py` 登记 → 在 `templates/` 下建同名目录放文件。
+仓库根目录 `.github/workflows/templates.yml` 包含 CLI/wheel、CPU PyTorch 和 ROS Jazzy 的自动化验证。
+团队模板存储在用户数据目录，独立于源码仓库；使用方式见 `template-management.md`。

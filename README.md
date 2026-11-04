@@ -1,14 +1,33 @@
 # Robotics DevKit Platform
 
-面向机器人与具身智能研发团队的工程工具平台，逐步整合项目模板、开发环境、训练评测、实验管理、CI/CD、仿真与部署。
+面向机器人与具身智能研发的工程工具平台。当前交付 **robot-cli v1.1 终端版**：
+交互式项目向导、版本化模板管理，以及 ROS 2 C++、ROS 2 Python、ROS 2 Bringup、PyTorch Training 四个 P0 模板。
 
-当前处于第一阶段：已有基础 CLI 与 ROS 2 Python 示例模板；C++ 和 PyTorch 模板已登记，但尚未实现完整生成流程。
+```bash
+cd rdk
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
+robot-cli
+```
 
-## 从这里开始
+不带参数进入终端菜单；创建成功、可选构建测试完成后自动退出。
+也可以使用子命令编写脚本：
 
-- [任务要求与阶段验收](任务要求.md)：了解项目目标、四个阶段的任务和完成标准。
-- [实施方案与开发路线](实施方案与开发路线.md)：结合当前代码，了解先改哪里、如何验证、怎样推进。
-- [ROS 2 Python 快速上手](rdk/docs/quickstart.md)：试用当前已有流程。
-- [目录结构说明](rdk/docs/dir_intro.md)：了解 CLI、模板和测试的位置。
+```bash
+robot-cli template list
+robot-cli template info ros2-cpp-package@1.0.0
+source /opt/ros/jazzy/setup.bash
+robot-cli project create ros2-cpp-package@1.0.0 \
+  --name demo_cpp --node-name demo_node --maintainer 'Team' \
+  --output ~/demo_ws/src --git --ci --smoke-test
+```
 
-建议先完成 CLI、三个基础模板、标准环境、训练评测与 CI，再建设共享实验管理、Web 和机器人验证能力。
+ROS 模板要求 Ubuntu 24.04 + ROS 2 Jazzy；模板管理与 PyTorch 项目创建无需 ROS。
+PyTorch 示例在 CPU 上运行，无需下载数据。桌面图形界面及 P1 模板留待后续实现。
+
+- [快速上手](rdk/docs/quickstart.md)：向导、项目创建、构建与训练。
+- [模板管理](rdk/docs/template-management.md)：版本、参数、启停、评审与 Git/注册表导入。
+- [目录结构](rdk/docs/dir_intro.md)：源码、资源与测试。
+- [验证记录](rdk/docs/verification.md)：本地验证范围与执行方法。
+- [任务要求](任务要求.md)和[实施路线](实施方案与开发路线.md)：阶段规划；其中早期现状描述是历史基线，当前功能以本 README 为准。

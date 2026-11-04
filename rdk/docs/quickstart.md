@@ -1,117 +1,101 @@
-# 快速上手：从零创建一个能跑的 ROS 2 软件包
+# robot-cli v1.1 快速上手
 
-这个案例用 `robot-cli` 创建一个 ROS 2 Python 包 `demo_pkg`，编译后运行里面的
-示例节点 `hello_node`，它会每秒打印一条 `hello from demo_pkg #N`。
+## 安装与终端向导
 
-## 0. 环境准备
-
-当前 CLI 要求 Ubuntu 24.04 + ROS 2 Jazzy。每次执行业务命令（包括模板列表）前，
-都会检查系统 ID、系统版本、`ROS_DISTRO=jazzy`、`ROS_VERSION=2` 以及
-当前 PATH 中的 `ros2` 命令。安装 ROS 后还需在当前终端加载环境。
-不符合要求时以退出码 1 停止，并显示当前环境、所需环境和修复建议；
-顶层 `robot-cli --help` 仍可查看。
-这些检查确认系统标识和终端配置，不替代 ROS 依赖、节点运行或硬件功能验证。
+需要 Python >= 3.10；在仓库 `rdk/` 下执行：
 
 ```bash
-# 加载 ROS 2 Jazzy（每个新终端都要做一次）
-source /opt/ros/jazzy/setup.bash
-
-# 进入 rdk 目录，安装成可编辑模式（改代码后不用重新安装）
-cd ~/VoVL773/Robotics_DevKit_Platform/rdk
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+python -m pip install -e '.[dev]'
+robot-cli
 ```
 
-安装成功后 `robot-cli` 命令就可以用了。
+裸命令进入终端菜单，可以创建项目、查看模板、新建草稿、启停、导入和记录评审发布。
+创建项目时依次选择模板版本，填写名称、节点名、维护者、邮箱、许可证和 ROS 发行版等参数。
+输入错误会提示重填；选择输出目录后，可初始化 Git、生成 GitHub Actions CI，并选择本地构建测试。
+确认创建后执行生成；成功后自动退出。取消确认返回菜单，菜单输入 `0` 或按 Ctrl+C 退出。
+构建测试失败时退出码为 1，保留项目和日志，便于修复依赖后手动重试。
 
-## 1. 看看有哪些模板
+ROS 生成与构建需要 Ubuntu 24.04 + ROS 2 Jazzy。
+模板管理与 PyTorch 创建不检查 ROS；`--help` 查看所有非交互子命令，`--version` 查看 CLI 版本。
+
+## 四个 P0 模板
+
+| 名称 | 生成内容 | 运行环境 |
+| --- | --- | --- |
+| `ros2-cpp` | C++17 节点、CMake、参数、Launch、gtest、文档 | Ubuntu 24.04 + Jazzy |
+| `ros2-python` | Python 节点、ament 打包、参数、Launch、pytest、文档 | Ubuntu 24.04 + Jazzy |
+| `ros2-bringup` | talker/listener 启动、命名空间、机器人配置、测试、文档 | Ubuntu 24.04 + Jazzy |
+| `pytorch-training` | Dataset、MLP、Trainer、配置、训练、评测、测试 | Python >= 3.10 + torch >= 2.2 |
+
+四个模板初始版本均为 `1.0.0`。`ros2-cpp-package`、`ros2-cpp-template` 是 `ros2-cpp` 的别名，
+`ros2-python-package` 是 `ros2-python` 的别名。P1 Robot Application、LeRobot Policy、Isaac Lab Task、
+Robot Deployment 尚未发布，不列为可用模板。
+
+## 创建 ROS 2 C++ 项目
+
+先安装 ROS 2 Jazzy、colcon、rosdep，以及项目的 ROS 依赖。
 
 ```bash
-robot-cli template list
-```
-
-```text
-名称                 版本         说明
-------------------------------------------------------------
-ros2-python          1.0.0        ROS 2 Python 软件包模板
-ros2-cpp             1.0.0        ROS 2 C++ 软件包模板
-pytorch-training     1.0.0        PyTorch 模型训练模板
-```
-
-再看某个模板的详情：
-
-```bash
-robot-cli template info ros2-python
-```
-
-## 2. 创建项目
-
-```bash
-# 先建一个工作空间，生成的包会放在 src/ 里
-mkdir -p ~/demo_ws/src
-robot-cli project create ros2-python --name demo_pkg --output ~/demo_ws/src
-```
-
-```text
-...
-creating folder /home/you/demo_ws/src/demo_pkg
-...
-
-项目创建成功：/home/you/demo_ws/src/demo_pkg
-
-下一步：
-  cd /home/you/demo_ws
-  colcon build --symlink-install
-  source install/setup.bash
-  ros2 run demo_pkg hello_node
-```
-
-说明：`robot-cli` 内部实际执行的是
-
-```bash
-ros2 pkg create demo_pkg \
-  --build-type ament_python \
-  --license Apache-2.0 \
-  --dependencies rclpy \
-  --node-name hello_node \
-  --destination-directory ~/demo_ws/src
-```
-
-生成骨架后，再把 `templates/ros2-python/` 里的示例节点覆盖进去，
-所以 `demo_pkg/hello_node.py` 是一个真正会 `rclpy.spin()` 的节点。
-
-## 3. 编译
-
-```bash
+source /opt/ros/jazzy/setup.bash
+robot-cli project create ros2-cpp-package@1.0.0 \
+  --name demo_cpp --node-name demo_node \
+  --maintainer 'Robot Team' --maintainer-email team@example.com \
+  --license Apache-2.0 --ros-distro jazzy \
+  --output ~/demo_ws/src --git --ci
 cd ~/demo_ws
-colcon build --symlink-install
+rosdep install --from-paths src --ignore-src -r -y
+colcon build --symlink-install --packages-select demo_cpp
+source install/setup.bash
+ros2 launch demo_cpp hello.launch.py
 ```
 
-```text
-Starting >>> demo_pkg
-Finished <<< demo_pkg [1.02s]
-
-Summary: 1 package finished [1.15s]
-```
-
-## 4. 运行
+节点每秒输出日志；也可以用 `ros2 run demo_cpp demo_node` 直接启动。
+`config/hello.yaml` 中 `period` 是正数秒数，`message` 是日志内容；修改文件后重启节点。
 
 ```bash
+colcon test --packages-select demo_cpp --event-handlers console_direct+
+colcon test-result --verbose
+```
+
+Python 流程相同：将模板换成 `ros2-python@1.0.0`。
+`--smoke-test` 可在生成后执行 colcon 构建、测试和结果检查；依赖必须预先安装，CLI 不自动运行 apt/rosdep。
+自动化集成测试还会短时启动 Launch，确认日志或节点通信。
+`--git` 只初始化本地仓库；`--ci` 只生成工作流文件，不推送到远端。
+
+## 创建 Bringup
+
+```bash
+robot-cli project create ros2-bringup@1.0.0 --name demo_bringup --output ~/demo_ws/src
+cd ~/demo_ws
+rosdep install --from-paths src --ignore-src -r -y
+colcon build --symlink-install --packages-select demo_bringup
 source install/setup.bash
-ros2 run demo_pkg hello_node
+ros2 launch demo_bringup bringup.launch.py
 ```
 
-```text
-[INFO] [1750000000.123456789] [hello_node]: hello_node 已启动，按 Ctrl+C 退出
-[INFO] [1750000000.623456789] [hello_node]: hello from demo_pkg #1
-[INFO] [1750000001.123456789] [hello_node]: hello from demo_pkg #2
-[INFO] [1750000001.623456789] [hello_node]: hello from demo_pkg #3
+默认在 `/demo_robot/chatter` 上由官方 `demo_nodes_cpp` 的 talker 发布 String，listener 订阅。
+Launch 接受 `namespace:=robot_a` 和 `params_file:=/absolute/robot.yaml`。
+本例没有仿真时钟或 TF，`use_sim_time` 默认为 false。
+
+## 创建并运行 PyTorch 项目
+
+不需要 source ROS。生成后进入独立项目，安装运行依赖：
+
+```bash
+robot-cli project create pytorch-training@1.0.0 --name train_demo --output ~/projects
+cd ~/projects/train_demo
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
+python -m training.train --config configs/default.json
+python -m training.evaluate --checkpoint outputs/checkpoint.pt
+python -m pytest -q
 ```
 
-按 `Ctrl+C` 退出。换个终端执行 `ros2 node list` 也能看到 `/hello_node`。
-
-## 5. 改一改
-
-`demo_pkg/demo_pkg/hello_node.py` 里改 `_on_timer` 的打印内容，因为
-`--symlink-install` 不需要重新编译，直接再 `ros2 run` 就能看到效果。
+配置包含种子、样本数、模型维度、学习率、轮数与输出目录。CPU 训练使用合成二分类数据，
+固定种子划分训练集和独立评测集，不下载数据。
+`outputs/` 保存 checkpoint、训练后评测指标和再次评测指标。
+checkpoint 含模型、优化器、配置和轮数；当前基础模板没有提供断点恢复或导出命令。
+如果当前 Python 已安装 torch 和 pytest，也可创建时加 `--smoke-test` 运行测试、训练及评测。

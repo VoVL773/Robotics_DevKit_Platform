@@ -10,8 +10,9 @@ runner = CliRunner()
 
 
 @pytest.fixture(autouse=True)
-def supported_environment(monkeypatch):
+def supported_environment(monkeypatch, tmp_path):
     """测试不依赖执行机器是否安装 ROS。"""
+    monkeypatch.setenv("ROBOT_CLI_TEMPLATE_HOME", str(tmp_path / "store"))
     monkeypatch.setattr(environment.platform, "freedesktop_os_release", lambda: {
         "ID": "ubuntu", "VERSION_ID": "24.04", "PRETTY_NAME": "Ubuntu 24.04 LTS",
     })
@@ -47,7 +48,7 @@ def test_project_create_rejects_invalid_name() -> None:
 ])
 def test_rejects_wrong_os(monkeypatch, release):
     monkeypatch.setattr(environment.platform, "freedesktop_os_release", lambda: release)
-    result = runner.invoke(app, ["template", "list"])
+    result = runner.invoke(app, ["project", "create", "ros2-python", "--name", "demo"])
     assert result.exit_code == 1
     assert release["PRETTY_NAME"] in result.output
     assert "需要环境：Ubuntu 24.04 + ROS 2 Jazzy" in result.output
@@ -59,7 +60,7 @@ def test_rejects_wrong_os(monkeypatch, release):
 ])
 def test_rejects_wrong_or_unloaded_ros(monkeypatch, variable, value):
     monkeypatch.setenv(variable, value)
-    result = runner.invoke(app, ["template", "list"])
+    result = runner.invoke(app, ["project", "create", "ros2-python", "--name", "demo"])
     assert result.exit_code == 1
     assert f"当前 {variable}：{value or '未设置'}" in result.output
     assert "source /opt/ros/jazzy/setup.bash" in result.output
@@ -80,7 +81,7 @@ def test_unreadable_os_release(monkeypatch):
     def unavailable():
         raise OSError("os-release unavailable")
     monkeypatch.setattr(environment.platform, "freedesktop_os_release", unavailable)
-    result = runner.invoke(app, ["template", "list"])
+    result = runner.invoke(app, ["project", "create", "ros2-python", "--name", "demo"])
     assert result.exit_code == 1
     assert "未知系统" in result.output
 

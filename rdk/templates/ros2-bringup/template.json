@@ -36,11 +36,6 @@
       "required": true,
       "pattern": "[\\w .@+\\-]+"
     },
-    "node_name": {
-      "type": "string",
-      "default": "hello_node",
-      "pattern": "[a-z][a-z0-9_]*"
-    },
     "maintainer_email": {
       "type": "string",
       "default": "maintainer@example.com",

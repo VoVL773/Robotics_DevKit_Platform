@@ -1,0 +1,33 @@
+name: CLI and P0 templates
+on: [push, pull_request]
+jobs:
+  cli-and-cpu:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e './rdk[dev]' wheel
+      - run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pytest -q rdk/tests
+      - name: CPU train and evaluate
+        run: ROBOT_CLI_RUN_SMOKE=1 python -m pytest -q rdk/tests/test_smoke.py -k cpu
+  ros-jazzy:
+    runs-on: ubuntu-24.04
+    container: ros:jazzy-ros-base
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        shell: bash
+        run: |
+          apt-get update
+          apt-get install -y python3-venv python3-pip python3-colcon-common-extensions \
+            ros-jazzy-ament-cmake-gtest ros-jazzy-ament-cmake-pytest ros-jazzy-demo-nodes-cpp
+          python3 -m venv --system-site-packages /tmp/rdk-venv
+          /tmp/rdk-venv/bin/python -m pip install -e './rdk[dev]'
+      - name: Build, test and launch all ROS P0 templates
+        shell: bash
+        run: |
+          source /opt/ros/jazzy/setup.bash
+          ROBOT_CLI_RUN_SMOKE=1 /tmp/rdk-venv/bin/python -m pytest -q rdk/tests/test_smoke.py -k ros

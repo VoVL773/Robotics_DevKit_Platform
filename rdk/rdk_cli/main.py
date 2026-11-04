@@ -188,6 +188,7 @@ jobs:
         run: |
           source /opt/ros/jazzy/setup.bash
           apt-get update
+          apt-get install -y python3-colcon-common-extensions python3-rosdep python3-pytest
           cd ws
           rosdep update
           rosdep install --from-paths src --ignore-src -r -y
@@ -242,10 +243,10 @@ def project_create(
             if not separator or key in supplied:
                 raise store.TemplateError(f'模板参数应为 KEY=VALUE 且不能重复：{item}')
             supplied[key] = value
-        values = store.parameters(record, supplied)
         # 即使自定义模板没有 package_name 的 pattern，输出目录也必须保持安全。
         if not re.fullmatch(r'[a-z](?:[a-z0-9_]*[a-z0-9])?', name):
             raise store.TemplateError('项目名必须以小写字母开头，只能包含小写字母、数字和下划线，且不能以下划线结尾')
+        values = store.parameters(record, supplied)
         kind = record['kind']
         if ci and kind == 'directory':
             raise store.TemplateError('通用 directory 模板需要自行提供 CI；--ci 仅支持 ROS/PyTorch')
@@ -319,6 +320,107 @@ def project_create(
         _fail(str(error))
     except subprocess.CalledProcessError as error:
         _fail(f'外部命令失败，退出码 {error.returncode}。已生成文件保留，请检查日志和依赖后重试。')
+
+
+
+def interactive_wizard():
+    """裸命令进入终端菜单；成功创建后返回并自动退出。"""
+    typer.echo('\nRobotics DevKit · CLI 1.1')
+    while True:
+        typer.echo('\n1 创建项目  2 查看模板  3 新建模板  4 启用模板')
+        typer.echo('5 停用模板  6 导入模板  7 评审发布  0 退出')
+        action = typer.prompt('请选择', default='1')
+        if action == '0':
+            return
+        if action == '2':
+            template_list()
+            reference = typer.prompt('查看详情（留空返回）', default='', show_default=False)
+            if reference:
+                template_info(reference)
+            continue
+        if action in {'4', '5', '7'}:
+            reference = typer.prompt('模板名称@版本')
+            if action == '7':
+                template_publish(reference, typer.prompt('已完成评审的评审人'))
+            else:
+                _toggle(reference, action == '4')
+            continue
+        if action == '3':
+            template_create(typer.prompt('模板名称'), typer.prompt('版本', default='0.1.0'),
+                            typer.prompt('维护者'), typer.prompt('类型', default='directory'))
+            continue
+        if action == '6':
+            source = typer.prompt('本地模板目录、Git URL 或注册表引用')
+            registry = typer.prompt('注册表路径/URL（留空表示直接来源）', default='', show_default=False)
+            ref = typer.prompt('Git ref（留空使用默认版本）', default='', show_default=False)
+            subdir = typer.prompt('模板子目录', default='.')
+            template_install(source, ref or None, subdir, registry or None)
+            continue
+        if action != '1':
+            typer.echo('请输入菜单中的数字。')
+            continue
+        try:
+            available = [item for item in store.inventory() if item['status'] == 'published' and item['enabled']]
+        except (store.TemplateError, OSError) as error:
+            _fail(str(error))
+        if not available:
+            typer.echo('没有已启用的发布版本，请先导入、发布或启用模板。')
+            continue
+        for index, item in enumerate(available, start=1):
+            typer.echo(f"{index}. {item['name']}@{item['version']} — {item['description']}")
+        choice = typer.prompt('选择模板编号', type=int)
+        if not 1 <= choice <= len(available):
+            typer.echo('模板编号超出范围，请重新选择。')
+            continue
+        record = available[choice - 1]
+        supplied = {}
+        for key, spec in record['parameters'].items():
+            label = {
+                'package_name': '项目名称', 'node_name': '节点名称', 'maintainer': '维护者',
+                'maintainer_email': '维护者邮箱', 'license': '许可证', 'ros_distro': 'ROS 发行版',
+            }.get(key, key)
+            while True:
+                default = spec.get('default', None if spec.get('required') else '')
+                if default is not None and spec['type'] != 'string' and default != '':
+                    default = json.dumps(default)
+                value = typer.prompt(label, default=default, type=str, show_default='default' in spec)
+                if value == '' and not spec.get('required') and 'default' not in spec:
+                    break
+                try:
+                    candidate = json.loads(value) if spec['type'] != 'string' else value
+                    store.validate_value(key, candidate, spec)
+                    if key == 'package_name' and (value in store.CPP_KEYWORDS or store.keyword.iskeyword(value)):
+                        raise store.TemplateError('项目名不能使用 Python/C++ 关键字')
+                except (store.TemplateError, ValueError) as error:
+                    typer.echo(f'参数错误：{error}，请重新输入。')
+                    continue
+                supplied[key] = value
+                break
+        output = typer.prompt('生成位置（ROS 建议使用工作空间 src 目录）', default='.')
+        initialize_git = typer.confirm('初始化 Git 仓库？', default=False)
+        create_ci = typer.confirm('生成 GitHub Actions CI？', default=False) if record['kind'] != 'directory' else False
+        run_smoke = typer.confirm('现在构建并执行冒烟测试（需已安装依赖）？', default=True) if record['kind'] != 'directory' else False
+        typer.echo(f"将使用 {record['name']}@{record['version']} 创建 {supplied['package_name']}")
+        if not typer.confirm('确认创建？', default=True):
+            continue
+        project_create(
+            template=f"{record['name']}@{record['version']}", name=supplied.pop('package_name'),
+            output=output, node_name=None, maintainer=None, maintainer_email=None,
+            license=None, ros_distro=None,
+            param=[f'{key}={value}' for key, value in supplied.items()],
+            git=initialize_git, ci=create_ci, smoke_test=run_smoke,
+        )
+        typer.echo('流程完成，退出 CLI。')
+        return
+
+
+@app.callback(invoke_without_command=True)
+def main(ctx: typer.Context, version: bool = typer.Option(False, '--version', help='显示 CLI 版本')):
+    if version:
+        typer.echo('robot-cli 1.1.0')
+        raise typer.Exit()
+    if ctx.invoked_subcommand is None:
+        interactive_wizard()
 
 
 if __name__ == '__main__':
