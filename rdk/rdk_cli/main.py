@@ -6,7 +6,6 @@
     robot-cli project create NAME    按模板创建一个 ROS 2 软件包
 """
 
-import os
 import re
 import shutil
 import subprocess
@@ -15,6 +14,7 @@ from pathlib import Path
 import typer
 
 from rdk_cli.registry import TEMPLATES  # 从 registry.py 中取出我们写好的模板登记表。
+from rdk_cli.environment import check_environment
 
 # 模板目录在仓库根目录下（rdk/templates），main.py 位于 rdk/rdk_cli/main.py。
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
@@ -33,6 +33,12 @@ project_app = typer.Typer(help="创建新项目。", no_args_is_help=True)
 # template_app / project_app 注册到主命令
 app.add_typer(template_app, name="template")
 app.add_typer(project_app, name="project")
+
+
+@app.callback()
+def before_command() -> None:
+    """所有业务命令执行前，统一检查 Ubuntu 和 ROS 环境。"""
+    check_environment()
 
 
 def _fail(message: str) -> None:
@@ -144,19 +150,6 @@ def project_create(
     # 6. 检查 ros2 命令；没有加载环境时给出明确提示
     if shutil.which("ros2") is None:
         _fail("找不到 ros2 命令，请先执行 source /opt/ros/jazzy/setup.bash")
-
-    ros_distro = os.environ.get("ROS_DISTRO")
-    if ros_distro is None:
-        typer.secho(
-            "警告：环境变量 ROS_DISTRO 未设置，可能还没有 source ROS 2 环境",
-            fg=typer.colors.YELLOW,
-            err=True,
-        )
-    elif ros_distro not in info["ros_distro"]:
-        _fail(
-            f"模板 '{template}' 只兼容 ROS 2 {', '.join(info['ros_distro'])}，"
-            f"当前是 {ros_distro}"
-        )
 
     # 7. 创建输出目录
     output_path.mkdir(parents=True, exist_ok=True)

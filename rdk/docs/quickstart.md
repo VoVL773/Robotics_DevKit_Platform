@@ -5,6 +5,13 @@
 
 ## 0. 环境准备
 
+当前 CLI 要求 Ubuntu 24.04 + ROS 2 Jazzy。每次执行业务命令（包括模板列表）前，
+都会检查系统 ID、系统版本、`ROS_DISTRO=jazzy`、`ROS_VERSION=2` 以及
+当前 PATH 中的 `ros2` 命令。安装 ROS 后还需在当前终端加载环境。
+不符合要求时以退出码 1 停止，并显示当前环境、所需环境和修复建议；
+顶层 `robot-cli --help` 仍可查看。
+这些检查确认系统标识和终端配置，不替代 ROS 依赖、节点运行或硬件功能验证。
+
 ```bash
 # 加载 ROS 2 Jazzy（每个新终端都要做一次）
 source /opt/ros/jazzy/setup.bash
