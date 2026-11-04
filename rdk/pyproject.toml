@@ -7,7 +7,7 @@ name = "robot-cli"
 version = "1.1.0"
 description = "rdk 机器人开发工具链命令行：查看模板、创建 ROS 2 与 PyTorch 项目"
 requires-python = ">=3.10"
-dependencies = ["typer"]
+dependencies = ["typer", "rich>=13"]
 
 [project.optional-dependencies]
 dev = ["pytest"]

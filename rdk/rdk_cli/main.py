@@ -12,6 +12,7 @@ import typer
 
 from rdk_cli.environment import check_environment
 from rdk_cli import template_store as store
+from rdk_cli import terminal as ui
 
 app = typer.Typer(help='robot-cli v1.1：版本化模板管理与 ROS 2 / PyTorch 项目生成。')
 template_app = typer.Typer(help='新建、导入、查看、启停与发布模板。', no_args_is_help=True)
@@ -29,10 +30,7 @@ def _fail(message):
 def template_list():
     """列出所有已安装版本及启停、发布状态。"""
     try:
-        typer.echo('模板@版本                       发布状态    启用    说明')
-        for item in store.inventory():
-            typer.echo(f"{item['name']}@{item['version']}  {item['status']}  "
-                       f"{'是' if item['enabled'] else '否'}  {item['description']}")
+        ui.templates(store.inventory())
     except (store.TemplateError, OSError) as error:
         _fail(str(error))
 
@@ -43,7 +41,10 @@ def template_info(name: str):
     try:
         record = store.resolve(name)
         data = {key: str(value) if isinstance(value, Path) else value for key, value in record.items()}
-        typer.echo(json.dumps(data, ensure_ascii=False, indent=2))
+        if ui.console.is_terminal:
+            ui.console.print_json(data=data, ensure_ascii=False)
+        else:
+            typer.echo(json.dumps(data, ensure_ascii=False, indent=2))
     except (store.TemplateError, OSError) as error:
         _fail(str(error))
 
@@ -286,8 +287,8 @@ def project_create(
             workflow.write_text(_ci(kind), encoding='utf-8')
         if git:
             subprocess.run(['git', 'init', str(project_path)], check=True)
-        typer.secho(f'项目创建成功：{project_path}', fg=typer.colors.GREEN)
-        typer.echo(f"模板版本：{record['name']}@{record['version']}")
+        ui.success(project_path, f"{record['name']}@{record['version']}")
+        ui.notice('下一步', 'bold cyan')
         if kind.startswith('ros2_'):
             workspace = output_path.parent if output_path.name == 'src' else output_path
             typer.echo(f'  cd {shlex.quote(str(workspace))}')
@@ -315,7 +316,7 @@ def project_create(
                                 [sys.executable, '-m', 'training.evaluate']):
                     subprocess.run(command, cwd=project_path, check=True)
         if smoke_test:
-            typer.echo('冒烟测试通过。')
+            ui.notice('✓ 冒烟测试通过。', 'bold green')
     except (store.TemplateError, OSError, ET.ParseError) as error:
         _fail(str(error))
     except subprocess.CalledProcessError as error:
@@ -325,11 +326,9 @@ def project_create(
 
 def interactive_wizard():
     """裸命令进入终端菜单；成功创建后返回并自动退出。"""
-    typer.echo('\nRobotics DevKit · CLI 1.1')
     while True:
-        typer.echo('\n1 创建项目  2 查看模板  3 新建模板  4 启用模板')
-        typer.echo('5 停用模板  6 导入模板  7 评审发布  0 退出')
-        action = typer.prompt('请选择', default='1')
+        ui.menu()
+        action = typer.prompt(typer.style('请选择', fg=typer.colors.CYAN, bold=True), default='1')
         if action == '0':
             return
         if action == '2':
@@ -357,7 +356,7 @@ def interactive_wizard():
             template_install(source, ref or None, subdir, registry or None)
             continue
         if action != '1':
-            typer.echo('请输入菜单中的数字。')
+            ui.notice('请输入菜单中的数字。')
             continue
         try:
             available = [item for item in store.inventory() if item['status'] == 'published' and item['enabled']]
@@ -366,13 +365,15 @@ def interactive_wizard():
         if not available:
             typer.echo('没有已启用的发布版本，请先导入、发布或启用模板。')
             continue
-        for index, item in enumerate(available, start=1):
-            typer.echo(f"{index}. {item['name']}@{item['version']} — {item['description']}")
+        ui.step('1 / 4', '选择模板')
+        ui.templates(available, selectable=True)
         choice = typer.prompt('选择模板编号', type=int)
         if not 1 <= choice <= len(available):
             typer.echo('模板编号超出范围，请重新选择。')
             continue
         record = available[choice - 1]
+        ui.step('2 / 4', '填写项目参数')
+        ui.notice(f"已选择：{record['name']}@{record['version']}", 'bold green')
         supplied = {}
         for key, spec in record['parameters'].items():
             label = {
@@ -383,7 +384,8 @@ def interactive_wizard():
                 default = spec.get('default', None if spec.get('required') else '')
                 if default is not None and spec['type'] != 'string' and default != '':
                     default = json.dumps(default)
-                value = typer.prompt(label, default=default, type=str, show_default='default' in spec)
+                value = typer.prompt(typer.style(label, fg=typer.colors.CYAN), default=default,
+                                     type=str, show_default='default' in spec)
                 if value == '' and not spec.get('required') and 'default' not in spec:
                     break
                 try:
@@ -392,15 +394,17 @@ def interactive_wizard():
                     if key == 'package_name' and (value in store.CPP_KEYWORDS or store.keyword.iskeyword(value)):
                         raise store.TemplateError('项目名不能使用 Python/C++ 关键字')
                 except (store.TemplateError, ValueError) as error:
-                    typer.echo(f'参数错误：{error}，请重新输入。')
+                    ui.notice(f'参数错误：{error}，请重新输入。', 'bold red')
                     continue
                 supplied[key] = value
                 break
+        ui.step('3 / 4', '生成与验证选项')
         output = typer.prompt('生成位置（ROS 建议使用工作空间 src 目录）', default='.')
         initialize_git = typer.confirm('初始化 Git 仓库？', default=False)
         create_ci = typer.confirm('生成 GitHub Actions CI？', default=False) if record['kind'] != 'directory' else False
         run_smoke = typer.confirm('现在构建并执行冒烟测试（需已安装依赖）？', default=True) if record['kind'] != 'directory' else False
-        typer.echo(f"将使用 {record['name']}@{record['version']} 创建 {supplied['package_name']}")
+        ui.step('4 / 4', '确认并创建')
+        ui.summary(record, supplied, output, initialize_git, create_ci, run_smoke)
         if not typer.confirm('确认创建？', default=True):
             continue
         project_create(
@@ -410,7 +414,7 @@ def interactive_wizard():
             param=[f'{key}={value}' for key, value in supplied.items()],
             git=initialize_git, ci=create_ci, smoke_test=run_smoke,
         )
-        typer.echo('流程完成，退出 CLI。')
+        ui.notice('✓ 流程完成，退出 CLI。', 'bold green')
         return
 
 
