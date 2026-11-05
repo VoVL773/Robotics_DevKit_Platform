@@ -23,10 +23,19 @@ def test_installed_wheel_contains_all_templates(tmp_path):
         assert 'rdk_templates/pytorch-training/.gitignore' in archive.namelist()
         assert 'rdk_cli/environments/assets/ros2-humble-dev.baseline.json' in archive.namelist()
         assert 'rdk_cli/environments/assets/ros2-jazzy-dev.baseline.json' in archive.namelist()
+        entrypoints = archive.read(next(name for name in archive.namelist()
+                                       if name.endswith('.dist-info/entry_points.txt'))).decode()
+        assert 'ros-cli = rdk_cli.main:app' in entrypoints
+        assert 'robot-cli = rdk_cli.main:app' in entrypoints
     target = tmp_path / 'installed'
     result = subprocess.run([sys.executable, '-m', 'pip', 'install', '--no-deps', '--target', str(target), str(wheel)],
                             capture_output=True, text=True, timeout=60)
     assert result.returncode == 0, result.stdout + result.stderr
+    result = subprocess.run([str(target / 'bin/ros-cli'), '--help'], cwd=tmp_path,
+                            env={**os.environ, 'PYTHONPATH': str(target)},
+                            capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'project' in result.stdout and 'template' in result.stdout and 'env' in result.stdout
     script = '''
 import ast
 import sys

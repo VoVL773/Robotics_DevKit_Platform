@@ -1,10 +1,16 @@
 # rdk 目录结构与依赖方向
 
+仓库根目录 `setup.sh` 是一键配置入口，负责准备 Python 虚拟环境和安装 CLI。
+`rdk/scripts/configure_launcher.py` 配置用户级命令、Bash/Zsh PATH 和原配置备份；
+启动入口保留当前工作目录，并将参数原样传给 CLI。
+
 ```text
 rdk/
 ├── docs/                         使用、架构与验收文档
+├── scripts/configure_launcher.py 用户级命令与终端 PATH 配置
 ├── rdk_cli/
 │   ├── main.py                   Typer 入口装配，选择命令/问答/工作台
+│   ├── cli_locale.py             中文帮助与参数错误
 │   ├── commands/
 │   │   ├── common.py             命令错误展示
 │   │   ├── projects.py           项目命令：参数转换、调用服务、展示结果
@@ -38,6 +44,7 @@ rdk/
 │   └── pytorch-training/         Dataset、模型、训练、评测与测试
 ├── tests/
 │   ├── test_cli.py               命令和 ROS 环境检查
+│   ├── test_setup.py             启动入口、PATH、重复配置与冲突保护
 │   ├── test_templates.py         生命周期、版本、参数、导入、问答向导
 │   ├── test_project_service.py   无界面依赖、预检无副作用、CLI/服务生成一致性
 │   ├── test_environments.py      环境矩阵、容器路由、已有挂载、锁与可选 GPU

@@ -1,5 +1,23 @@
 # CLI v1.1 本地验证记录
 
+## 一键配置与任意目录启动（2026-11-05）
+
+新增根目录 `setup.sh`，准备运行环境、用户级 `ros-cli` 入口与 Bash/Zsh PATH。
+本轮完整回归：**139 passed, 4 skipped**，执行命令如下：
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 rdk/.venv/bin/python -m pytest -q -p no:cacheprovider rdk/tests
+```
+
+实际使用全新 HOME 和包含中文、空格的虚拟环境路径，完成依赖安装；
+从 `/tmp`、初始 PATH 仅含 `/usr/bin:/bin` 的新 Bash 中直接运行 `ros-cli`，
+全屏工作台正常加载，Ctrl+Q 正常退出。版本查询与模板列表也通过。
+
+当前用户的启动入口和终端配置已完成；再次执行 `--launcher-only` 后，
+配置文件内容保持一致，每个文件只有一个 PATH 区块。原终端配置已备份。
+`bash -n setup.sh` 与 `git diff --check` 通过。
+本轮未重新执行 ROS/Docker 构建；下文保留此前各轮的验证记录。
+
 验证日期：2026-11-05（Asia/Shanghai）。环境为 Ubuntu 24.04、Python 3.12、ROS 2 Jazzy，
 PyTorch CPU 版本为 2.15.0+cpu。以下为实际执行结果，不代表远端 CI 已运行。
 

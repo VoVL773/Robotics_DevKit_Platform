@@ -14,6 +14,7 @@ dev = ["pytest"]
 
 [project.scripts]
 robot-cli = "rdk_cli.main:app"
+ros-cli = "rdk_cli.main:app"
 
 [tool.setuptools]
 packages = ["rdk_cli", "rdk_cli.commands", "rdk_cli.environments", "rdk_templates"]

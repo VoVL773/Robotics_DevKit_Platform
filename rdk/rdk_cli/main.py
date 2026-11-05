@@ -1,5 +1,6 @@
 """CLI 装配入口：注册命令组，选择全屏工作台或旧问答向导。"""
 import typer
+from rdk_cli.cli_locale import ChineseTyper
 
 from rdk_cli.commands.common import fail
 from rdk_cli.commands.environments import app as env_app, doctor
@@ -7,7 +8,7 @@ from rdk_cli.commands.projects import app as project_app
 from rdk_cli.commands.templates import app as template_app
 from rdk_cli.version import cli_version
 
-app = typer.Typer(help='robot-cli：版本化模板管理与 ROS 2 / PyTorch 项目生成。')
+app = ChineseTyper(help='robot-cli：版本化模板管理与 ROS 2 / PyTorch 项目生成。')
 app.add_typer(template_app, name='template')
 app.add_typer(project_app, name='project')
 app.add_typer(env_app, name='env')

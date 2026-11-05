@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 import typer
+from rdk_cli.cli_locale import ChineseTyper
 from rich.console import Console
 from rich.table import Table
 
@@ -13,7 +14,7 @@ from rdk_cli.environments.doctor import diagnose
 from rdk_cli.environments.profiles import EnvironmentError, PROFILES, get_profile
 from rdk_cli.version import cli_version
 
-app = typer.Typer(help='开发环境兼容检查、锁定配置与容器生命周期。', no_args_is_help=True)
+app = ChineseTyper(help='开发环境兼容检查、锁定配置与容器生命周期。', no_args_is_help=True)
 console = Console()
 DEFAULT_ROOT = Path('.robot-cli/environments')
 

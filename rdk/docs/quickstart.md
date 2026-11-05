@@ -2,14 +2,17 @@
 
 ## 安装与终端工作台
 
-需要 Python >= 3.10；在仓库 `rdk/` 下执行：
+需要 Python >= 3.10、venv 和网络。在仓库根目录运行一次：
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e '.[dev]'
-robot-cli
+bash setup.sh
 ```
+
+脚本创建或复用 `rdk/.venv`，安装运行依赖，将 `ros-cli` 启动入口放入 `~/.local/bin`，
+并自动配置 Bash 的交互/登录终端 PATH；使用 Zsh 时也配置对应的 `.zshrc` 和 `.zprofile`。
+用户现有配置保留，首次修改前保存 `<原文件>.ros-cli.bak`。重复执行不会追加重复区块。
+新开一个终端后，在任意工作目录输入 `ros-cli` 即可启动，不需要激活环境或进入仓库。
+当前终端若尚未包含启动目录，脚本会显示立即生效的命令。
 
 裸命令进入 Textual 全屏终端工作台，不需要浏览器或桌面窗口。
 
@@ -39,9 +42,39 @@ robot-cli --wizard
 
 不支持全屏交互的终端或重定向环境请使用 `--wizard` 或子命令。
 `--help` 查看所有非交互子命令，`--version` 查看 CLI 版本。
+帮助和常见参数错误默认用中文显示；命令及参数名保持英文，例如查询版本使用 `--version`。
 
 ROS 模板 1.1 支持 Ubuntu 22.04 + Humble 或 Ubuntu 24.04 + Jazzy；跨发行版使用容器，见 [环境管理](environments.md)。
 模板管理与 PyTorch 创建不检查 ROS；`--help` 查看所有非交互子命令，`--version` 查看 CLI 版本。
+
+### 配置选项与开发安装
+
+脚本可以从任何目录通过绝对路径运行。可选择 Python、虚拟环境及命令目录：
+
+```bash
+bash setup.sh --python python3.12 --venv ./rdk/.venv --bin-dir "$HOME/.local/bin"
+```
+
+已经安装 CLI、只需修复启动入口和 PATH 时，可以离线执行：
+
+```bash
+bash setup.sh --launcher-only
+```
+
+Ubuntu 缺少 venv 时先安装 `python3-venv`（非默认 Python 可能需要对应版本的 venv 包）。
+同名启动入口若属于其他程序，脚本会报错并保留原文件；原先指向同一 CLI 的软链接可自动迁移。
+支持 Bash/Zsh；Fish 等其他终端需自行把命令目录加入 PATH。
+相对输出路径以启动时的当前目录为准。仓库和 `.venv` 需保留在原位置；移动后重新创建环境并运行配置脚本。
+
+开发者需要测试依赖时，在仓库根目录执行：
+
+```bash
+rdk/.venv/bin/python -m pip install -e './rdk[dev]' wheel
+rdk/.venv/bin/python -m pytest -q rdk/tests
+```
+
+`ros-cli` 支持 `--help`、`--wizard` 和全部现有子命令。
+`robot-cli` 是同一程序的另一个安装入口，可在虚拟环境内使用。
 
 ## 四个 P0 模板
 

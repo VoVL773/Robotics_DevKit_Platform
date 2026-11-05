@@ -4,12 +4,13 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+from rdk_cli.cli_locale import ChineseTyper
 
 from rdk_cli import template_store as store
 from rdk_cli import terminal as ui
 from rdk_cli.commands.common import fail
 
-app = typer.Typer(help='新建、导入、查看、启停与发布模板。', no_args_is_help=True)
+app = ChineseTyper(help='新建、导入、查看、启停与发布模板。', no_args_is_help=True)
 
 
 @app.command('list')

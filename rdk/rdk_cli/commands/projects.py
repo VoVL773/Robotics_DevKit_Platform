@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 
 import typer
+from rdk_cli.cli_locale import ChineseTyper
 
 from rdk_cli import template_store as store
 from rdk_cli import terminal as ui
@@ -17,7 +18,7 @@ from rdk_cli.environments.discovery import discover
 from rdk_cli.environments.profiles import get_profile
 from rdk_cli.project_service import ProjectRequest, create_project, prepare_project, run_smoke_tests
 
-app = typer.Typer(help='从固定版本模板创建独立项目。', no_args_is_help=True)
+app = ChineseTyper(help='从固定版本模板创建独立项目。', no_args_is_help=True)
 
 
 @app.command('create')

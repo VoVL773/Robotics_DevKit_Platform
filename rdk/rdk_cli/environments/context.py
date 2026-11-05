@@ -112,6 +112,7 @@ requires-python = ">=3.10"
 dependencies = ["typer", "rich>=13", "textual>=1.0,<2", "packaging>=24"]
 [project.scripts]
 robot-cli = "rdk_cli.main:app"
+ros-cli = "rdk_cli.main:app"
 [tool.setuptools]
 packages = ["rdk_cli", "rdk_cli.commands", "rdk_cli.environments", "rdk_templates"]
 [tool.setuptools.package-dir]
