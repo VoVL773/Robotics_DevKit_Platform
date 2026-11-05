@@ -108,6 +108,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "robot-cli"
 version = "{cli_version()}"
+maintainers = [{{name = "VoVL773"}}]
 requires-python = ">=3.10"
 dependencies = ["typer", "rich>=13", "textual>=1.0,<2", "packaging>=24"]
 [project.scripts]

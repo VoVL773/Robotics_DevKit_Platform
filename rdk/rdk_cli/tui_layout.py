@@ -59,8 +59,11 @@ def compose_workbench() -> ComposeResult:
             with Horizontal(id='create-layout'):
                 with VerticalScroll(id='template-sidebar'):
                     yield Static('01  选择模板', classes='heading')
-                    yield Static('固定版本创建，已有项目不会被覆盖。', classes='hint')
+                    yield Static('先选模板，再选版本。已有项目不会被覆盖。', classes='hint')
+                    yield Label('模板')
                     yield Select([], prompt='请选择模板', id='project-template')
+                    yield Label('版本')
+                    yield Select([], prompt='请选择版本', id='project-version')
                     yield Static('', id='template-description', markup=False)
                 with Vertical(id='project-panel'):
                     with VerticalScroll(id='project-form'):
@@ -138,4 +141,3 @@ def compose_workbench() -> ComposeResult:
                 yield Button('返回项目配置', id='back-to-form')
     yield Static('就绪 · 选择模板并填写项目参数', id='job-status', markup=False)
     yield Footer()
-

@@ -172,7 +172,7 @@ def test_tui_mismatch_offers_container_configuration_without_spawning(monkeypatc
         app = DevKitApp()
         async with app.run_test(size=(120, 42)) as pilot:
             await pilot.pause()
-            app.query_one('#project-template', Select).value = 'ros2-cpp@1.1.0'
+            app.query_one('#project-template', Select).value = 'ros2-cpp'
             await pilot.pause()
             app.query_one('#param-ros_distro', Select).value = 'humble'
             app.query_one('#param-package_name', Input).value = 'demo'

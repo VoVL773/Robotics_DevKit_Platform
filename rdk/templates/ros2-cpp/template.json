@@ -5,7 +5,7 @@
   "kind": "ros2_cpp",
   "priority": "P0",
   "status": "published",
-  "maintainer": "Robotics DevKit Platform contributors",
+  "maintainer": "VoVL773",
   "environment": [
     "Ubuntu 24.04",
     "ROS 2 Jazzy"

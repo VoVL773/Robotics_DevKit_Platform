@@ -35,7 +35,7 @@ class DevKitApp(App[str]):
     """中文终端界面；键盘、鼠标和脚本子命令使用相同的模板与参数规则。"""
 
     TITLE = 'Robotics DevKit'
-    SUB_TITLE = '项目与模板工作台 · v1.1'
+    SUB_TITLE = '项目与模板工作台 · v1.1 · 维护者：VoVL773'
     ENABLE_COMMAND_PALETTE = False
     BINDINGS = [
         Binding('f5', 'refresh', '刷新'),
@@ -85,12 +85,12 @@ class DevKitApp(App[str]):
         available = [record for record in self.records if record['enabled'] and record['status'] == 'published']
         selector = self.query_one('#project-template', Select)
         previous = selector.value
+        previous_version = self.query_one('#project-version', Select).value
+        names = sorted({record['name'] for record in available})
         with selector.prevent(Select.Changed):
-            selector.set_options([(self.reference(record), self.reference(record)) for record in available])
-            references = [self.reference(record) for record in available]
-            selector.value = previous if previous in references else (references[0] if references else Select.BLANK)
-        self.project_record = next((record for record in available if self.reference(record) == selector.value), None)
-        await self.build_parameters()
+            selector.set_options([(name, name) for name in names])
+            selector.value = previous if previous in names else (names[0] if names else Select.BLANK)
+        await self.update_project_versions(previous_version if selector.value == previous else Select.BLANK)
         table = self.query_one('#template-table', DataTable)
         table.clear()
         for record in self.records:
@@ -108,7 +108,29 @@ class DevKitApp(App[str]):
 
     @on(Select.Changed, '#project-template')
     async def select_project_template(self, event):
-        self.project_record = next((record for record in self.records if self.reference(record) == event.value), None)
+        await self.update_project_versions()
+
+    async def update_project_versions(self, previous=Select.BLANK):
+        name = self.query_one('#project-template', Select).value
+        available = sorted(
+            (record for record in self.records if record['name'] == name
+             and record['enabled'] and record['status'] == 'published'),
+            key=lambda record: tuple(map(int, record['version'].split('.'))), reverse=True,
+        )
+        selector = self.query_one('#project-version', Select)
+        versions = [record['version'] for record in available]
+        with selector.prevent(Select.Changed):
+            selector.set_options([(version, version) for version in versions])
+            selector.value = previous if previous in versions else (versions[0] if versions else Select.BLANK)
+        self.project_record = next((record for record in available if record['version'] == selector.value), None)
+        await self.build_parameters()
+
+    @on(Select.Changed, '#project-version')
+    async def select_project_version(self, event):
+        name = self.query_one('#project-template', Select).value
+        self.project_record = next((record for record in self.records if record['name'] == name
+                                    and record['version'] == event.value and record['enabled']
+                                    and record['status'] == 'published'), None)
         await self.build_parameters()
 
     async def build_parameters(self):

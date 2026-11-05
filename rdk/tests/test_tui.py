@@ -56,13 +56,68 @@ def test_tui_loads_templates_switches_forms_and_keeps_input_on_refresh():
             await pilot.press('f5')
             await pilot.pause()
             assert app.query_one('#param-package_name', Input).value == 'keep_me'
-            app.query_one('#project-template', Select).value = 'ros2-cpp@1.0.0'
+            app.query_one('#project-template', Select).value = 'ros2-cpp'
+            await pilot.pause()
+            assert app.query_one('#project-version', Select).value == '1.1.0'
+            app.query_one('#project-version', Select).value = '1.0.0'
             await pilot.pause()
             assert app.query_one('#param-node_name', Input).value == 'hello_node'
             assert app.query_one('#param-ros_distro', Select).value == 'jazzy'
             assert app.query_one('#param-package_name', Input).value == ''
+            app.query_one('#param-package_name', Input).value = 'keep_old_version'
+            await pilot.press('f5')
+            await pilot.pause()
+            assert app.query_one('#project-template', Select).value == 'ros2-cpp'
+            assert app.query_one('#project-version', Select).value == '1.0.0'
+            assert app.query_one('#param-package_name', Input).value == 'keep_old_version'
             await pilot.press('ctrl+l')
             assert app.query_one('#tabs', TabbedContent).active == 'logs-tab'
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('size', [(120, 42), (80, 24)])
+def test_template_versions_follow_selection_and_available_versions(monkeypatch, size):
+    records = store.inventory()
+    cpp = next(record for record in records if record['name'] == 'ros2-cpp')
+    records.extend([{**cpp, 'version': version} for version in ('1.9.0', '1.10.0')])
+    records.append({**cpp, 'version': '2.0.0', 'status': 'draft'})
+    records.append({**cpp, 'version': '3.0.0', 'enabled': False})
+    monkeypatch.setattr(store, 'inventory', lambda: records)
+
+    async def scenario():
+        app = DevKitApp()
+        async with app.run_test(size=size) as pilot:
+            await pilot.pause()
+            templates = app.query_one('#project-template', Select)
+            versions = app.query_one('#project-version', Select)
+            templates.value = 'ros2-cpp'
+            await pilot.pause()
+            assert versions.value == '1.10.0'
+            assert app.project_record['name'] == 'ros2-cpp'
+            versions.value = '1.9.0'
+            await pilot.pause()
+            assert app.project_record['version'] == '1.9.0'
+
+            # 所选版本停用时，回退到同一模板的最新可用版本。
+            next(record for record in records if record['version'] == '1.9.0')['enabled'] = False
+            await app.refresh_templates()
+            assert templates.value == 'ros2-cpp'
+            assert versions.value == '1.10.0'
+
+            templates.value = 'pytorch-training'
+            await pilot.pause()
+            assert versions.value == '1.0.0'
+            assert app.project_record['name'] == 'pytorch-training'
+            assert not app.query('#param-node_name')
+
+            for record in records:
+                record['enabled'] = False
+            await app.refresh_templates()
+            assert templates.value is Select.BLANK
+            assert versions.value is Select.BLANK
+            assert app.project_record is None
+            assert app.query_one('#create-project', Button).disabled
+
     asyncio.run(scenario())
 
 

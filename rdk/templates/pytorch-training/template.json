@@ -5,7 +5,7 @@
   "kind": "pytorch",
   "priority": "P0",
   "status": "published",
-  "maintainer": "Robotics DevKit Platform contributors",
+  "maintainer": "VoVL773",
   "environment": [
     "Python >= 3.10",
     "CPU"
