@@ -1,2 +1,6 @@
 .vscode/
 .robot-cli/
+
+.agent/
+.aws/
+.codex/
