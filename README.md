@@ -4,12 +4,18 @@
 Textual 全屏终端工作台、版本化模板管理，以及 ROS 2 C++、ROS 2 Python、ROS 2 Bringup、PyTorch Training 四个 P0 模板。
 
 ```bash
-cd rdk
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e '.[dev]'
-robot-cli
+bash setup.sh
 ```
+
+脚本会准备虚拟环境、安装 CLI、配置启动入口与 Bash/Zsh 的 PATH，无需 sudo。
+需要 Python 3.10+、venv 和安装依赖所需的网络。配置完成后，新开终端，在任意目录输入：
+
+```bash
+ros-cli
+```
+
+无需进入仓库或激活虚拟环境。`ros-cli` 与 `robot-cli` 支持相同的参数和子命令，
+配置详情与开发安装方式见[快速上手](rdk/docs/quickstart.md)。
 
 不带参数进入可点击的全屏终端界面，提供“项目创建 / 模板管理 / 环境检查 / 构建日志”四个页面。
 支持鼠标、Tab 切换焦点、F5 刷新和 Ctrl+Q 退出；任务在后台执行，可查看实时日志并取消。
