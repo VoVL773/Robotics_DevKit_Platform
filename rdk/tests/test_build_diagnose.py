@@ -1,6 +1,10 @@
 """真实子进程日志和错误解释的回归，不依赖 Docker 或网络。"""
 import subprocess
 import sys
+import os
+from pathlib import Path
+import signal
+import time
 
 import pytest
 
@@ -56,6 +60,87 @@ def test_non_utf8_log_does_not_break_forwarding(capsys):
     result = run_logged([sys.executable, '-c', 'import sys; sys.stdout.buffer.write(bytes([255, 10]))'])
     assert result.returncode == 0
     assert capsys.readouterr().out == '\ufffd\n'
+
+
+def test_progress_and_partial_utf8_logs_are_forwarded_without_rewriting(capsys):
+    script = ('import sys, time; '
+              'sys.stdout.buffer.write(b"progress\\r"); sys.stdout.buffer.flush(); '
+              'sys.stdout.buffer.write(bytes([0xe4])); sys.stdout.buffer.flush(); time.sleep(0.05); '
+              'sys.stdout.buffer.write(bytes([0xb8, 0xad])); sys.stdout.buffer.flush()')
+    result = run_logged([sys.executable, '-c', script], timeout=5)
+    assert result.stdout == 'progress\r中'
+    assert capsys.readouterr().out == result.stdout
+
+
+def test_output_without_newline_is_forwarded_before_process_exits(monkeypatch, tmp_path):
+    from rdk_cli.environments import context
+    acknowledgement = tmp_path / 'log-received'
+    script = '''
+import pathlib, sys, time
+print('ready', end='', flush=True)
+while not pathlib.Path(sys.argv[1]).exists():
+    time.sleep(0.01)
+print(' done', flush=True)
+'''
+
+    class LogSink:
+        def write(self, text):
+            if 'ready' in text:
+                acknowledgement.touch()
+
+        def flush(self):
+            pass
+
+    with monkeypatch.context() as patch:
+        patch.setattr(context.sys, 'stdout', LogSink())
+        result = run_logged([sys.executable, '-c', script, str(acknowledgement)], timeout=2)
+    assert result.stdout == 'ready done\n'
+
+
+@pytest.mark.parametrize('stage', ['write', 'flush'])
+def test_log_forwarding_failure_is_reported_and_process_is_stopped(monkeypatch, tmp_path, stage):
+    from rdk_cli.environments import context
+    pid_file = tmp_path / 'pid'
+    script = ('import os, pathlib, sys, time; '
+              'pathlib.Path(sys.argv[1]).write_text(str(os.getpid())); '
+              'print("original diagnostic", flush=True); time.sleep(30)')
+
+    class BrokenLog:
+        def write(self, text):
+            if stage == 'write':
+                raise OSError('log output failed')
+
+        def flush(self):
+            if stage == 'flush':
+                raise OSError('log output failed')
+
+    with monkeypatch.context() as patch:
+        patch.setattr(context.sys, 'stdout', BrokenLog())
+        with pytest.raises(EnvironmentError, match='log output failed') as caught:
+            run_logged([sys.executable, '-c', script, str(pid_file)], timeout=2)
+    assert isinstance(caught.value.__cause__, OSError)
+    assert 'original diagnostic' in str(caught.value)
+    assert not Path(f'/proc/{pid_file.read_text()}').exists()
+
+
+def test_timeout_returns_even_if_detached_child_holds_log_pipe(tmp_path):
+    pid_file = tmp_path / 'detached-pid'
+    script = ('import pathlib, subprocess, sys; '
+              'child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], '
+              'start_new_session=True); pathlib.Path(sys.argv[1]).write_text(str(child.pid))')
+    started = time.monotonic()
+    try:
+        with pytest.raises(EnvironmentError) as caught:
+            run_logged([sys.executable, '-c', script, str(pid_file)], timeout=0.5)
+        assert isinstance(caught.value.__cause__, subprocess.TimeoutExpired)
+        assert time.monotonic() - started < 3
+    finally:
+        # 脱离进程组的测试子进程由测试负责清理。
+        if pid_file.exists():
+            try:
+                os.kill(int(pid_file.read_text()), signal.SIGKILL)
+            except ProcessLookupError:
+                pass
 
 
 def test_timeout_ends_process():

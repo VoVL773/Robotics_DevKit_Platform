@@ -1,4 +1,5 @@
 """构建上下文与环境锁；只有显式更新才重新解析可变的上游仓库。"""
+import codecs
 import hashlib
 from importlib.resources import files
 import json
@@ -6,10 +7,10 @@ import os
 from pathlib import Path
 import re
 import shutil
+import selectors
 import signal
 import subprocess
 import sys
-import threading
 import time
 from urllib.request import urlopen
 
@@ -39,36 +40,45 @@ def run(command, **kwargs):
 
 
 def run_logged(command, *, timeout=None, **kwargs):
-    """实时转发构建/验收日志，并在失败后补充建议；超时仍会结束子进程。"""
+    """按块转发原始日志；超时覆盖进程退出和管道关闭，写出失败立即报错。"""
     output = []
     deadline = time.monotonic() + timeout if timeout is not None else None
+
+    def remaining():
+        return max(0, deadline - time.monotonic()) if deadline is not None else None
+
     try:
         with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                              text=True, encoding='utf-8', errors='replace',
-                              start_new_session=True, **kwargs) as process:
-            def forward():
-                for line in process.stdout:
-                    output.append(line)
-                    sys.stdout.write(line)
-                    sys.stdout.flush()
-
-            reader = threading.Thread(target=forward, daemon=True)
-            reader.start()
+                              bufsize=0, start_new_session=True, **kwargs) as process:
             try:
-                process.wait(timeout=timeout)
-                reader.join(timeout=max(0, deadline - time.monotonic()) if deadline is not None else None)
-                if reader.is_alive():
-                    raise subprocess.TimeoutExpired(command, timeout)
-            except (subprocess.TimeoutExpired, KeyboardInterrupt):
-                # bash/colcon 也可能创建子进程，超时后一起结束，避免日志管道不关闭。
+                # 同一线程等待可读数据并写日志，写出异常不会遗失在线程里。
+                # 读取二进制块，保留进度日志的回车和无换行输出；增量解码处理跨块汉字。
+                decoder = codecs.getincrementaldecoder('utf-8')(errors='replace')
+                with selectors.DefaultSelector() as selector:
+                    selector.register(process.stdout, selectors.EVENT_READ)
+                    while selector.get_map():
+                        wait = remaining()
+                        if wait is not None and wait <= 0:
+                            raise subprocess.TimeoutExpired(command, timeout, output=''.join(output))
+                        for key, _ in selector.select(wait):
+                            chunk = os.read(key.fd, 64 * 1024)
+                            text = decoder.decode(chunk, final=not chunk)
+                            if text:
+                                output.append(text)
+                                sys.stdout.write(text)
+                                sys.stdout.flush()
+                            if not chunk:
+                                selector.unregister(key.fileobj)
+                process.wait(timeout=remaining())
+            except BaseException:
+                # 不再无限 join 日志线程；即使另建会话的后代占着管道，也按时返回。
+                # 只能清理当前进程组，主动脱离进程组的程序不在管理范围内。
                 try:
                     os.killpg(process.pid, signal.SIGKILL)
                 except ProcessLookupError:
                     pass
                 process.wait()
                 raise
-            finally:
-                reader.join()
             if process.returncode:
                 raise subprocess.CalledProcessError(process.returncode, command, output=''.join(output))
             return subprocess.CompletedProcess(command, process.returncode, stdout=''.join(output))
@@ -79,8 +89,12 @@ def run_logged(command, *, timeout=None, **kwargs):
         if advice:
             message += f'\n建议：{advice}'
         raise EnvironmentError(message) from error
-    except (OSError, subprocess.TimeoutExpired) as error:
-        raise EnvironmentError(f'无法执行 {command[0]}：{error}') from error
+    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+        detail = ''.join(output)[-2000:]
+        message = f'无法执行或转发日志 {command[0]}：{error}'
+        if detail:
+            message += f'\n原始输出（末尾）：\n{detail}'
+        raise EnvironmentError(message) from error
 
 
 def digest_bytes(content):

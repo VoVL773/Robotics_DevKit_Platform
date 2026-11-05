@@ -42,7 +42,8 @@ robot-cli --wizard
 
 不支持全屏交互的终端或重定向环境请使用 `--wizard` 或子命令。
 `--help` 查看所有非交互子命令，`--version` 查看 CLI 版本。
-帮助和常见参数错误默认用中文显示；命令及参数名保持英文，例如查询版本使用 `--version`。
+界面、帮助说明和业务提示使用中文；框架参数错误保留原始文本、异常类型和退出码。
+Docker、ROS 和构建日志保留原文，已知失败可附加中文建议；例如查询版本使用 `--version`。
 
 ROS 模板 1.1 支持 Ubuntu 22.04 + Humble 或 Ubuntu 24.04 + Jazzy；跨发行版使用容器，见 [环境管理](environments.md)。
 模板管理与 PyTorch 创建不检查 ROS；`--help` 查看所有非交互子命令，`--version` 查看 CLI 版本。

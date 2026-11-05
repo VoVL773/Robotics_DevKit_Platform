@@ -10,7 +10,7 @@ rdk/
 ├── scripts/configure_launcher.py 用户级命令与终端 PATH 配置
 ├── rdk_cli/
 │   ├── main.py                   Typer 入口装配，选择命令/问答/工作台
-│   ├── cli_locale.py             中文帮助与参数错误
+│   ├── cli_locale.py             中文帮助展示，框架报错保持原样
 │   ├── commands/
 │   │   ├── common.py             命令错误展示
 │   │   ├── projects.py           项目命令：参数转换、调用服务、展示结果

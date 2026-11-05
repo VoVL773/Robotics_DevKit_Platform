@@ -1,4 +1,4 @@
-"""中文帮助和解析错误覆盖真实 CLI，错误退出码仍遵循原解析器。"""
+"""中文帮助与原生框架错误并存，验证退出码、异常类型和原始文本。"""
 import json
 
 import pytest
@@ -11,29 +11,29 @@ from rdk_cli.cli_locale import ChineseTyper
 runner = CliRunner()
 
 
-def test_mistyped_version_has_chinese_suggestion():
+def test_mistyped_version_keeps_original_framework_error():
     result = runner.invoke(app, ['--vision'], prog_name='ros-cli')
     assert result.exit_code == 2
-    for text in ('用法：', '无法识别选项：--vision', '你可能想输入：--version', 'ros-cli --help'):
+    for text in ('Usage:', 'No such option: --vision', '--version', 'ros-cli --help'):
         assert text in result.output
-    for text in ('Usage:', 'No such option:', 'Possible options:', 'Traceback'):
+    for text in ('无法识别选项', '你可能想输入', 'Traceback'):
         assert text not in result.output
 
 
 @pytest.mark.parametrize('args, expected', [
-    (['env', 'build', '--vision'], '无法识别选项'),
-    (['project', 'create'], '缺少必填参数'),
+    (['env', 'build', '--vision'], 'No such option'),
+    (['project', 'create'], 'Missing argument'),
     (['template', 'create', 'demo'], '--maintainer'),
-    (['project', 'create', 'ros2-cpp', '--name'], '需要提供一个值'),
-    (['template', 'list', 'extra'], '存在多余参数'),
-    (['not-a-command'], '未知命令'),
-    (['env', 'not-a-command'], '未知命令'),
+    (['project', 'create', 'ros2-cpp', '--name'], 'requires an argument'),
+    (['template', 'list', 'extra'], 'unexpected extra argument'),
+    (['not-a-command'], 'No such command'),
+    (['env', 'not-a-command'], 'No such command'),
 ])
-def test_nested_parse_errors_are_chinese(args, expected):
+def test_nested_parse_errors_remain_original(args, expected):
     result = runner.invoke(app, args, prog_name='ros-cli')
     assert result.exit_code == 2, result.output
     assert expected in result.output
-    assert '错误' in result.output
+    assert 'Error:' in result.output
     assert 'Traceback' not in result.output
 
 
@@ -47,7 +47,7 @@ def test_help_is_chinese_at_all_command_levels(args):
     assert '用法： ros-cli' in result.output
     assert '选项' in result.output
     assert '显示帮助并退出。' in result.output
-    for text in ('Usage:', 'Show this message', 'Options', 'Commands', '[required]', 'default:'):
+    for text in ('Usage:', 'Show this message', 'Options', 'Commands'):
         assert text not in result.output
 
 
@@ -69,7 +69,7 @@ def test_no_argument_group_shows_chinese_help(group):
     assert 'Traceback' not in result.output
 
 
-def test_invalid_number_keeps_parameter_name_and_uses_chinese():
+def test_invalid_number_keeps_original_error():
     example = ChineseTyper()
     @example.callback()
     def callback():
@@ -80,13 +80,13 @@ def test_invalid_number_keeps_parameter_name_and_uses_chinese():
     result = runner.invoke(example, ['count', '--number', 'abc'])
     assert result.exit_code == 2
     assert '--number' in result.output
-    assert "'abc' 不是有效的整数" in result.output
+    assert "'abc' is not a valid" in result.output
 
 
 def test_unknown_command_name_is_not_translated():
     result = runner.invoke(app, ['required'])
     assert result.exit_code == 2
-    assert "未知命令：'required'" in result.output
+    assert "No such command 'required'" in result.output
 
 
 def test_json_output_and_business_error_keep_existing_contract(monkeypatch, tmp_path):
@@ -97,3 +97,42 @@ def test_json_output_and_business_error_keep_existing_contract(monkeypatch, tmp_
     result = runner.invoke(app, ['template', 'info', 'not-installed'])
     assert result.exit_code == 1
     assert '找不到模板' in result.output
+
+
+@pytest.mark.parametrize('args', [
+    ['--unknown'], ['count'], ['count', '--number', 'abc'],
+    ['count', '--number'], ['count', '--number', '1', 'extra'], ['unknown'],
+])
+def test_parse_error_matches_native_framework_including_exception_type(args):
+    def make_app(factory):
+        example = factory(rich_markup_mode=None)
+        @example.callback()
+        def callback():
+            pass
+        @example.command()
+        def count(number: int = typer.Option(..., '--number')):
+            pass
+        return example
+
+    native = make_app(typer.Typer)
+    localized = make_app(ChineseTyper)
+    expected = runner.invoke(native, args, prog_name='test-cli')
+    actual = runner.invoke(localized, args, prog_name='test-cli')
+    assert actual.exit_code == expected.exit_code
+    assert actual.output == expected.output
+    expected_exception = runner.invoke(native, args, standalone_mode=False).exception
+    actual_exception = runner.invoke(localized, args, standalone_mode=False).exception
+    assert type(actual_exception) is type(expected_exception)
+    assert str(actual_exception) == str(expected_exception)
+
+
+def test_help_does_not_translate_user_text_or_default_values():
+    example = ChineseTyper()
+    @example.command()
+    def count(value: str = typer.Option("No such command 'required'.", help='Show this message and exit.')):
+        pass
+    result = runner.invoke(example, ['--help'])
+    assert result.exit_code == 0
+    unwrapped = ' '.join(result.output.replace('│', '').split())
+    assert "No such command 'required'." in unwrapped
+    assert 'Show this message and exit.' in result.output
