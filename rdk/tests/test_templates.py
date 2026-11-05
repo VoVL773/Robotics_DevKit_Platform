@@ -1,5 +1,7 @@
 """模板生命周期、校验、导入和独立生成的回归测试。"""
 import json
+import hashlib
+import shutil
 import subprocess
 
 import pytest
@@ -7,8 +9,59 @@ from typer.testing import CliRunner
 
 from rdk_cli.main import app
 from rdk_cli import template_store as store
+from rdk_cli.version import cli_version
 
 runner = CliRunner()
+
+
+def _template_content_hashes(root, *, normalize_legacy_readme=False):
+    """仅归一化已评审的发行版文案差异，其他文件仍逐字节比较。"""
+    hashes = {}
+    for path in root.rglob('*'):
+        if not path.is_file() or '__pycache__' in path.parts or path.suffix == '.pyc':
+            continue
+        relative = path.relative_to(root).as_posix()
+        if relative == 'template.json':
+            continue
+        content = path.read_bytes()
+        if relative == 'README.md' and normalize_legacy_readme:
+            # 1.0.0 文档面向 Jazzy，1.1.0 文档描述 Humble/Jazzy；不修改发布模板。
+            content = content.replace(
+                '在 Ubuntu 24.04 中安装 ROS 2 Jazzy 和 colcon，加载环境后，将此目录放在工作空间 src/ 下。'.encode(),
+                '根据所选发行版安装对应系统与 colcon（Humble：Ubuntu 22.04；Jazzy：Ubuntu 24.04），加载环境后，将此目录放在工作空间 src/ 下。'.encode(), 1,
+            ).replace(b'ROS 2 Jazzy', b'ROS 2 {{ros_distro}}', 1).replace(
+                b'/opt/ros/jazzy/setup.bash', b'/opt/ros/{{ros_distro}}/setup.bash', 1)
+        hashes[relative] = hashlib.sha256(content).hexdigest()
+    return hashes
+
+
+def _assert_template_pair(base, versioned):
+    left = _template_content_hashes(base, normalize_legacy_readme=True)
+    right = _template_content_hashes(versioned)
+    differences = sorted(name for name in left.keys() | right.keys() if left.get(name) != right.get(name))
+    assert not differences, f'模板内容漂移（含新增、删除文件）：{differences}'
+
+
+@pytest.mark.parametrize('base', ['ros2-cpp', 'ros2-python', 'ros2-bringup'])
+def test_versioned_template_matches_base(base):
+    _assert_template_pair(store.BUILTIN_ROOT / base, store.BUILTIN_ROOT / f'{base}-1.1')
+
+
+@pytest.mark.parametrize('relative, remove', [
+    ('CMakeLists.txt', False), ('README.md', False), ('new-file.txt', False), ('CMakeLists.txt', True),
+])
+def test_template_guard_reports_changed_paths(tmp_path, relative, remove):
+    base, versioned = tmp_path / 'base', tmp_path / 'versioned'
+    shutil.copytree(store.BUILTIN_ROOT / 'ros2-cpp', base)
+    shutil.copytree(store.BUILTIN_ROOT / 'ros2-cpp-1.1', versioned)
+    target = versioned / relative
+    if remove:
+        target.unlink()
+    else:
+        target.write_bytes((target.read_bytes() if target.exists() else b'') + b'x')
+    with pytest.raises(AssertionError) as caught:
+        _assert_template_pair(base, versioned)
+    assert relative in str(caught.value)
 
 
 @pytest.fixture(autouse=True)
@@ -145,7 +198,7 @@ def test_import_rejects_symlinks_and_traversal(tmp_path):
 
 def test_alias_and_version_info():
     assert store.resolve('ros2-cpp-package@1.0.0')['name'] == 'ros2-cpp'
-    assert invoke('--version').output.strip() == 'robot-cli 1.1.0'
+    assert invoke('--version').output.strip() == f'robot-cli {cli_version()}'
     data = json.loads(invoke('template', 'info', 'ros2-cpp-template@1.0.0').output)
     for key in ('maintainer', 'dependencies', 'environment', 'changelog', 'parameters'):
         assert data[key]

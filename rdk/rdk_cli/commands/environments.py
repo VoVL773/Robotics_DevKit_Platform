@@ -11,6 +11,7 @@ from rdk_cli.environments import containers
 from rdk_cli.environments.context import configure, write_json
 from rdk_cli.environments.doctor import diagnose
 from rdk_cli.environments.profiles import EnvironmentError, PROFILES, get_profile
+from rdk_cli.version import cli_version
 
 app = typer.Typer(help='开发环境兼容检查、锁定配置与容器生命周期。', no_args_is_help=True)
 console = Console()
@@ -28,7 +29,8 @@ def list_environments(as_json: bool = typer.Option(False, '--json')):
     if as_json:
         typer.echo(json.dumps([p.data() for p in PROFILES.values()], ensure_ascii=False, indent=2))
         return
-    table = Table(title='开发环境兼容矩阵 · v1.0.0')
+    versions = '、'.join(sorted({p.version for p in PROFILES.values()}))
+    table = Table(title=f'开发环境兼容矩阵 · 环境 {versions} / CLI {cli_version()}')
     for label in ('环境', 'Ubuntu', 'ROS', 'Python', 'CUDA / 最低驱动', '镜像版本'):
         table.add_column(label)
     for p in PROFILES.values():

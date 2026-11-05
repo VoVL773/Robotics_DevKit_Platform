@@ -2,14 +2,20 @@
 import hashlib
 from importlib.resources import files
 import json
+import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
+import sys
+import threading
 import time
 from urllib.request import urlopen
 
 from .profiles import EnvironmentError, Profile
+from .diagnose import explain_build_failure
+from rdk_cli.version import cli_version
 
 ASSETS = Path(str(files('rdk_cli').joinpath('environments/assets')))
 BOOTSTRAP = '''set -euo pipefail
@@ -28,6 +34,51 @@ def run(command, **kwargs):
     except subprocess.CalledProcessError as error:
         detail = (error.stderr or error.stdout or '').strip()[-2000:]
         raise EnvironmentError(f'命令失败（退出码 {error.returncode}）：{command[0]}；{detail}') from error
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise EnvironmentError(f'无法执行 {command[0]}：{error}') from error
+
+
+def run_logged(command, *, timeout=None, **kwargs):
+    """实时转发构建/验收日志，并在失败后补充建议；超时仍会结束子进程。"""
+    output = []
+    deadline = time.monotonic() + timeout if timeout is not None else None
+    try:
+        with subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              text=True, encoding='utf-8', errors='replace',
+                              start_new_session=True, **kwargs) as process:
+            def forward():
+                for line in process.stdout:
+                    output.append(line)
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+
+            reader = threading.Thread(target=forward, daemon=True)
+            reader.start()
+            try:
+                process.wait(timeout=timeout)
+                reader.join(timeout=max(0, deadline - time.monotonic()) if deadline is not None else None)
+                if reader.is_alive():
+                    raise subprocess.TimeoutExpired(command, timeout)
+            except (subprocess.TimeoutExpired, KeyboardInterrupt):
+                # bash/colcon 也可能创建子进程，超时后一起结束，避免日志管道不关闭。
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.wait()
+                raise
+            finally:
+                reader.join()
+            if process.returncode:
+                raise subprocess.CalledProcessError(process.returncode, command, output=''.join(output))
+            return subprocess.CompletedProcess(command, process.returncode, stdout=''.join(output))
+    except subprocess.CalledProcessError as error:
+        detail = error.stdout or ''
+        advice = explain_build_failure(detail)
+        message = f'命令失败（退出码 {error.returncode}）：{command[0]}；{detail.strip()[-2000:]}'
+        if advice:
+            message += f'\n建议：{advice}'
+        raise EnvironmentError(message) from error
     except (OSError, subprocess.TimeoutExpired) as error:
         raise EnvironmentError(f'无法执行 {command[0]}：{error}') from error
 
@@ -51,12 +102,12 @@ def copy_cli(destination):
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
     shutil.copytree(template_root, destination / 'templates', dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-    (destination / 'pyproject.toml').write_text('''[build-system]
+    (destination / 'pyproject.toml').write_text(f'''[build-system]
 requires = ["setuptools==75.6.0", "wheel==0.45.1"]
 build-backend = "setuptools.build_meta"
 [project]
 name = "robot-cli"
-version = "1.1.0"
+version = "{cli_version()}"
 requires-python = ">=3.10"
 dependencies = ["typer", "rich>=13", "textual>=1.0,<2", "packaging>=24"]
 [project.scripts]

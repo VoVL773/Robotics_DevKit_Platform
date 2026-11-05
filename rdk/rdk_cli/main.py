@@ -5,8 +5,9 @@ from rdk_cli.commands.common import fail
 from rdk_cli.commands.environments import app as env_app, doctor
 from rdk_cli.commands.projects import app as project_app
 from rdk_cli.commands.templates import app as template_app
+from rdk_cli.version import cli_version
 
-app = typer.Typer(help='robot-cli v1.1：版本化模板管理与 ROS 2 / PyTorch 项目生成。')
+app = typer.Typer(help='robot-cli：版本化模板管理与 ROS 2 / PyTorch 项目生成。')
 app.add_typer(template_app, name='template')
 app.add_typer(project_app, name='project')
 app.add_typer(env_app, name='env')
@@ -20,7 +21,7 @@ def main(
     wizard: bool = typer.Option(False, '--wizard', help='使用逐步问答向导，兼容不支持全屏界面的终端'),
 ):
     if version:
-        typer.echo('robot-cli 1.1.0')
+        typer.echo(f'robot-cli {cli_version()}')
         raise typer.Exit()
     if ctx.invoked_subcommand is None:
         if wizard:

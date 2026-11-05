@@ -1,16 +1,19 @@
 """项目应用服务：统一校验、生成计划、文件生成和冒烟测试，不导入 CLI/TUI。"""
 
 from dataclasses import dataclass, field
+import json
 from pathlib import Path
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 
 from rdk_cli import template_store as store
-from rdk_cli.environment import check_environment
+from rdk_cli.environment import EnvironmentCheckError, check_environment
 from rdk_cli.project_ci import workflow_for
 from rdk_cli.project_files import add_runtime_dependencies, render_template
+from rdk_cli.version import cli_version
 
 
 @dataclass(frozen=True)
@@ -120,7 +123,7 @@ def create_project(plan: ProjectPlan) -> Path:
         add_runtime_dependencies(plan.project_path, plan.kind)
     store.save_json(plan.project_path / '.robot-cli.json', {
         'template': plan.record['name'], 'version': plan.record['version'], 'parameters': values,
-        'source': plan.record.get('source', 'builtin'), 'cli_version': '1.1.0',
+        'source': plan.record.get('source', 'builtin'), 'cli_version': cli_version(),
     })
     if request.ci:
         workflow = plan.project_path / '.github/workflows/smoke.yml'
@@ -131,12 +134,60 @@ def create_project(plan: ProjectPlan) -> Path:
     return plan.project_path
 
 
+def _python3_executable() -> str | None:
+    """使用实际执行构建命令的 PATH，避免写死系统解释器位置。"""
+    return shutil.which('python3')
+
+
+def _probe_ros_python(executable: str) -> tuple[bool, str | None]:
+    """检查 ROS 构建依赖，并从被检查的解释器获取其基础解释器路径。"""
+    script = '''import json, sys
+try:
+    import catkin_pkg, ament_package, rclpy
+except ImportError:
+    ready = False
+else:
+    ready = True
+print(json.dumps({'ready': ready, 'base': getattr(sys, '_base_executable', None)}))
+'''
+    try:
+        result = subprocess.run([executable, '-c', script], capture_output=True, text=True, timeout=15)
+        if result.returncode:
+            return False, None
+        probe = json.loads(result.stdout.strip().splitlines()[-1])
+        return probe['ready'] is True, probe['base']
+    except (OSError, subprocess.TimeoutExpired, ValueError, IndexError, KeyError):
+        return False, None
+
+
+def _ros_build_python() -> str | None:
+    """优先 PATH 解释器；隔离 venv 缺少 ROS 模块时尝试它自己的基础解释器。"""
+    python3 = _python3_executable()
+    if not python3:
+        return None
+    ready, base = _probe_ros_python(python3)
+    if ready:
+        return python3
+    if base and base != python3 and _probe_ros_python(base)[0]:
+        print(f'ROS 构建：{python3} 缺少 ROS 模块，使用已验证的基础解释器 {base}。', file=sys.stderr)
+        return base
+    raise EnvironmentCheckError(
+        f'Python 解释器 {python3} 无法导入 ROS 构建依赖（catkin_pkg、ament_package、rclpy）。'
+        '请加载匹配发行版的 setup.bash，并使用包含 ROS 系统依赖的 Python 环境。')
+
+
 def run_smoke_tests(plan: ProjectPlan) -> None:
     """执行已有依赖下的 ROS 构建测试或 CPU 训练评测，不负责安装依赖。"""
     if plan.kind.startswith('ros2_'):
-        subprocess.run(['colcon', 'build', '--symlink-install', '--packages-select', plan.request.name,
-                        '--cmake-args', '-DPython3_EXECUTABLE=/usr/bin/python3'],
-                       cwd=plan.workspace, check=True)
+        command = ['colcon', 'build', '--symlink-install', '--packages-select', plan.request.name]
+        # 后续新增 CMake 参数时追加到同一列表，避免覆盖已有参数。
+        cmake_args = []
+        python3 = _ros_build_python()
+        if python3:
+            cmake_args.append(f'-DPython3_EXECUTABLE={python3}')
+        if cmake_args:
+            command += ['--cmake-args', *cmake_args]
+        subprocess.run(command, cwd=plan.workspace, check=True)
         script = ('source install/setup.bash && colcon test --packages-select ' + shlex.quote(plan.request.name)
                   + ' --event-handlers console_direct+ && colcon test-result --verbose')
         subprocess.run(['bash', '-c', script], cwd=plan.workspace, check=True)

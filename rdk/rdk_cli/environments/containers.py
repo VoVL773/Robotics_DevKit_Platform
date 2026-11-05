@@ -6,7 +6,7 @@ import subprocess
 import time
 import sys
 
-from .context import configure, digest_bytes, image_tag, lock_id, run, verify_context, write_json
+from .context import configure, digest_bytes, image_tag, lock_id, run, run_logged, verify_context, write_json
 from .doctor import diagnose
 from .profiles import EnvironmentError, Profile
 
@@ -46,7 +46,7 @@ def build(profile: Profile, root: Path, *, force_container=False, update=False, 
     if existing_image and (existing_image['Config'].get('Labels') or {}).get(LABEL + '.lock') != lock_id(lock):
         raise EnvironmentError(f'同名镜像的环境锁不符：{image}；请人工检查，不会覆盖')
     if not existing_image:
-        run(['docker', 'build', '--platform', 'linux/amd64', '--tag', image,
+        run_logged(['docker', 'build', '--platform', 'linux/amd64', '--tag', image,
              '--label', f'{LABEL}={profile.name}', '--label', f'{LABEL}.lock={lock_id(lock)}',
              '--build-arg', f'BASE_IMAGE={lock["base_digest"]}', '--build-arg', f'ROS_DISTRO={profile.ros}',
              '--build-arg', f'WITH_TORCH={int(with_torch)}', str(context)])
@@ -153,9 +153,9 @@ trap 'rm -rf "$verify_dir"' EXIT
         # 保留 CLI 虚拟环境可执行路径，避免要求用户提前安装另一份工具。
         import shlex
         host_script = script.replace('robot-cli project', shlex.quote(sys.executable) + ' -m rdk_cli.main project')
-        run(['bash', '--noprofile', '--norc', '-c', host_script], env=os.environ, timeout=600)
+        run_logged(['bash', '--noprofile', '--norc', '-c', host_script], env=os.environ, timeout=600)
     else:
-        run(['docker', 'exec', result['container'], 'bash', '-c', script], timeout=600)
+        run_logged(['docker', 'exec', result['container'], 'bash', '-c', script], timeout=600)
     result['verification'] = 'passed'
     result['verified_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     if result['mode'] == 'container':
