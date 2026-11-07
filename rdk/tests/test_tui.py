@@ -50,7 +50,7 @@ def test_tui_loads_templates_switches_forms_and_keeps_input_on_refresh():
         app = DevKitApp()
         async with app.run_test(size=(120, 42)) as pilot:
             await pilot.pause()
-            assert len(app.records) == 7
+            assert len(app.records) == len(store.inventory())
             assert app.project_record['name'] == 'pytorch-training'
             app.query_one('#param-package_name', Input).value = 'keep_me'
             await pilot.press('f5')
@@ -279,4 +279,30 @@ def test_import_local_template_from_ui(tmp_path):
             record = store.resolve('external-ui@1.0.0')
             assert record['status'] == 'draft'
             assert not record['enabled']
+    asyncio.run(scenario())
+
+
+def test_no_examples_choice_survives_template_switch_and_generates_skeleton(tmp_path):
+    async def scenario():
+        app = DevKitApp()
+        async with app.run_test(size=(120, 42)) as pilot:
+            await pilot.pause()
+            choice = app.query_one('#project-examples', Select)
+            assert choice.value == 'yes'
+            choice.value = 'no'
+            app.query_one('#project-template', Select).value = 'ros2-python'
+            await pilot.pause()
+            assert choice.value == 'no'
+            app.query_one('#project-template', Select).value = 'pytorch-training'
+            await pilot.pause()
+            app.query_one('#param-package_name', Input).value = 'blank'
+            app.query_one('#output', Input).value = str(tmp_path)
+            app.query_one('#auto-exit', Checkbox).value = False
+            app.query_one('#create-project', Button).press()
+            await pilot.pause(0.25)
+            await wait_until(pilot, lambda: app.last_result is not None and not app.busy)
+            assert app.last_result == 'success'
+            assert (tmp_path / 'blank/training/__init__.py').exists()
+            assert not (tmp_path / 'blank/training/train.py').exists()
+            assert json.loads((tmp_path / 'blank/.robot-cli.json').read_text())['include_examples'] is False
     asyncio.run(scenario())

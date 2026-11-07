@@ -270,3 +270,25 @@ def test_container_identity_supports_different_host_uid_gid(monkeypatch, tmp_pat
     assert 'rdkdev_4321:x:4321:8765:' in (target / 'passwd').read_text()
     assert 'rdkdev_8765:x:8765:' in (target / 'group').read_text()
     assert (target / 'passwd').read_text().startswith('root:')
+
+
+@pytest.mark.parametrize('include_examples', [True, False])
+@pytest.mark.parametrize('reuse', [True, False])
+def test_container_routes_forward_example_choice(monkeypatch, tmp_path, include_examples, reuse):
+    plan = prepare_project(ProjectRequest('ros2-cpp', 'demo', str(tmp_path / 'src'),
+                           {'ros_distro': 'humble'}, include_examples=include_examples), check_host=False)
+    calls = []
+    monkeypatch.setattr(projects, 'run', lambda command, **kw: calls.append(command))
+    monkeypatch.setattr(projects, 'record_environment', lambda *a: None)
+    if reuse:
+        candidate = discovery.ContainerCandidate('old', 'image', True, '22.04', 'humble', True,
+                    [{'type': 'bind', 'source': str(tmp_path), 'target': '/ws', 'writable': True}], 'ok')
+        monkeypatch.setattr(discovery, 'discover', lambda p: [candidate])
+        projects.create_in_existing(plan, 'old')
+    else:
+        monkeypatch.setattr(projects, 'initialize', lambda *a, **kw: {'container': 'new'})
+        projects.create_in_container(plan, 'new', str(tmp_path))
+    creation = [cmd for cmd in calls if 'robot-cli-project' in cmd]
+    assert len(creation) == 1
+    assert ('--examples' if include_examples else '--no-examples') in creation[0]
+    assert ('--no-examples' if include_examples else '--examples') not in creation[0]

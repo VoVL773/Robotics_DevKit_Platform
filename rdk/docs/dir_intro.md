@@ -36,12 +36,6 @@ rdk/
 │   ├── template_store.py         版本、参数、状态、评审、Git/注册表导入
 │   ├── registry.py               旧登记表导入兼容入口
 │   └── environment.py            ROS 环境检测与领域异常
-├── templates/                    以 rdk_templates 包随 wheel 分发
-│   ├── ros2-python/              Python 节点、参数、Launch、pytest
-│   ├── ros2-cpp/                 C++17 节点、参数、Launch、gtest
-│   ├── ros2-bringup/             多节点启动、机器人配置与测试
-│   ├── ros2-*-1.1/              双发行版模板（保留原有 1.0 目录）
-│   └── pytorch-training/         Dataset、模型、训练、评测与测试
 ├── tests/
 │   ├── test_cli.py               命令和 ROS 环境检查
 │   ├── test_setup.py             启动入口、PATH、重复配置与冲突保护
@@ -89,7 +83,12 @@ TUI 在启动任务前使用同一个服务预检；实际生成和导入通过 
 修改界面外观时编辑 `tui_layout.py`；修改交互事件时编辑 `tui.py`；修改进程清理时编辑
 `process_runner.py`。旧问答向导复用命令适配器，保持提示、错误输出及命令行为一致。
 
-每个模板的 `template.json` 是元数据和参数定义的唯一来源。
+公共模板位于仓库根目录 `templates/rdk_templates/`，由 `templates/pyproject.toml` 独立打包为
+`robot-cli-templates`，CLI 通过 `rdk_templates` 资源包读取，容器导出仍自带公共模板。
+
+每个模板的 `template.json` 是元数据、参数标签、别名和生成规则的唯一来源。
+模板自己的 `.rdp/` 保存无示例骨架和 CI；后续操作与显式冒烟命令由 `generation` 定义。
+贡献者规范与完整字段见 [模板目录说明](../../templates/README.md)。
 ROS 项目先由 `ros2 pkg create` 创建标准骨架，再叠加模板内容；PyTorch 与通用目录模板直接复制渲染。
 生成后写入 `.robot-cli.json` 记录确切版本和参数。生成项目不导入 `rdk_cli`，可脱离本仓库构建和运行。
 

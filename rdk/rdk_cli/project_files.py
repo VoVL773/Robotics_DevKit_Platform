@@ -6,20 +6,19 @@ from pathlib import Path
 from rdk_cli import template_store as store
 
 
-def render_template(record, destination, values):
+def render_template(record, destination, values, *, source_dir=None):
     """仅进行文本替换与文件复制；禁止符号链接、路径越界和未解析的占位符。"""
-    root = record['path']
+    root = record['path'] if source_dir is None else template_path(record, source_dir)
+    if not root.is_dir():
+        raise store.TemplateError(f'模板内容目录不存在：{root}')
     rendered = {}
     def replace(text):
-        for key, value in values.items():
-            text = text.replace('{{' + key + '}}', str(value))
-        if re.search(r'\{\{[a-z][a-z0-9_]*\}\}', text):
-            raise store.TemplateError('模板包含未定义的参数占位符')
-        return text
+        return render_text(text, values)
 
     for source in sorted(root.rglob('*')):
         relative = source.relative_to(root)
-        if any(part in {'.git', '__pycache__'} for part in relative.parts) or source.suffix == '.pyc':
+        if (any(part in {'.git', '__pycache__'} for part in relative.parts)
+                or (source_dir is None and relative.parts[0] == '.rdp') or source.suffix == '.pyc'):
             continue
         if relative == Path('template.json'):
             continue
@@ -46,23 +45,44 @@ def render_template(record, destination, values):
         target.write_bytes(content)
 
 
-def add_runtime_dependencies(project_path, kind):
+def template_path(record, relative):
+    """配置引用必须指向模板内的普通文件或目录，禁止越界和符号链接。"""
+    root = Path(record['path']).resolve()
+    candidate = Path(relative)
+    if candidate.is_absolute() or '..' in candidate.parts:
+        raise store.TemplateError(f'模板资源路径必须位于模板内：{relative}')
+    path = root / candidate
+    if not path.resolve().is_relative_to(root) or any(
+            parent.is_symlink() for parent in [path, *path.parents] if parent != root and root in parent.parents):
+        raise store.TemplateError(f'模板资源不允许符号链接或路径越界：{relative}')
+    if not path.exists():
+        raise store.TemplateError(f'模板资源不存在：{relative}')
+    return path
+
+
+def render_text(text, values):
+    for key, value in values.items():
+        text = text.replace('{{' + key + '}}', str(value))
+    if re.search(r'\{\{[a-z][a-z0-9_]*\}\}', text):
+        raise store.TemplateError('模板包含未定义的参数占位符')
+    return text
+
+
+def add_runtime_dependencies(project_path, ros, *, include_examples=True):
+    """ROS 通用元数据适配；依赖名称由模板 generation.ros 声明。"""
     package_xml = project_path / 'package.xml'
     tree = ET.parse(package_xml)
     root = tree.getroot()
-    dependencies = ['launch_ros', 'ament_index_python']
-    if kind == 'ros2_bringup':
-        dependencies += ['demo_nodes_cpp', 'python3-yaml']
+    dependencies = list(ros.get('runtime_dependencies', []))
+    if include_examples:
+        dependencies += ros.get('example_dependencies', [])
     for dependency in dependencies:
         if not any(child.text == dependency for child in root if child.tag in {'depend', 'exec_depend'}):
             ET.SubElement(root, 'exec_depend').text = dependency
-    tests = {'ros2_cpp': 'ament_cmake_gtest', 'ros2_python': 'python3-pytest',
-             'ros2_bringup': 'ament_cmake_pytest'}
-    if not any(child.text == tests[kind] for child in root):
-        ET.SubElement(root, 'test_depend').text = tests[kind]
-    # ros2 pkg create 生成的版权/style 占位测试与本模板无关；由行为测试替代。
-    test_dir = project_path / 'test'
+    test_dependency = ros.get('test_dependency')
+    if include_examples and test_dependency and not any(child.text == test_dependency for child in root):
+        ET.SubElement(root, 'test_depend').text = test_dependency
     for filename in ('test_copyright.py', 'test_flake8.py', 'test_pep257.py'):
-        (test_dir / filename).unlink(missing_ok=True)
+        (project_path / 'test' / filename).unlink(missing_ok=True)
     ET.indent(tree, space='  ')
     tree.write(package_xml, encoding='utf-8', xml_declaration=True)

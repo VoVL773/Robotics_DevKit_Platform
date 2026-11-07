@@ -147,3 +147,9 @@ robot-cli template install team-demo@1.2.0 \
 CLI 校验注册表引用与下载的模板名称、版本一致。
 本地注册表的 `git` 路径建议使用绝对路径；相对路径按命令当前工作目录解释。
 HTTP 注册表目前不提供专门的认证参数；内部访问通过网络环境和 Git 自身认证配置解决。
+
+
+## 仓库内置模板维护
+
+公共模板集中在仓库根目录 `templates/rdk_templates/`，独立资源包的维护流程见
+[模板目录说明](../../templates/README.md)。CLI 源码不再保存模板副本。

@@ -72,6 +72,9 @@ def compose_workbench() -> ComposeResult:
                             yield Static('正在加载模板…')
                         yield Label('生成位置（ROS 建议选择工作空间 src 目录）')
                         yield Input(str(Path.cwd()), id='output')
+                        yield Label('示例代码')
+                        yield Select([('生成示例代码', 'yes'), ('不生成示例代码', 'no')],
+                                     value='yes', allow_blank=False, id='project-examples')
                         yield Checkbox('初始化 Git 仓库', id='git')
                         yield Checkbox('生成 GitHub Actions CI', id='ci')
                         yield Checkbox('构建并执行冒烟测试（需提前安装依赖）', id='smoke')

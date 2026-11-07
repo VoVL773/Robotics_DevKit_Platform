@@ -67,7 +67,7 @@ def notice(message, style='yellow'):
     console.print(Text(message, style=style))
 
 
-def summary(record, values, output, git, ci, smoke):
+def summary(record, values, output, git, ci, smoke, examples=True):
     table = Table.grid(padding=(0, 2))
     table.add_column(style='dim', no_wrap=True)
     table.add_column()
@@ -78,6 +78,7 @@ def summary(record, values, output, git, ci, smoke):
         table.add_row(labels.get(key, key), Text(str(value)))
     table.add_row('生成位置', Text(output))
     table.add_row('Git / CI', f"{'创建' if git else '跳过'} / {'生成' if ci else '跳过'}")
+    table.add_row('示例代码', '生成示例代码' if examples else '不生成示例代码（工程骨架）')
     table.add_row('构建测试', '执行' if smoke else '跳过')
     console.print(Panel(table, title='[bold yellow]创建前确认[/bold yellow]',
                         border_style='yellow', expand=False))

@@ -141,17 +141,33 @@ export PYTEST_ADDOPTS='-p no:launch_testing -p no:launch_ros'
 verify_dir=$(mktemp -d /tmp/robot-cli-verify-XXXXXX)
 trap 'rm -rf "$verify_dir"' EXIT
 '''
-    for template in ('ros2-cpp', 'ros2-python', 'ros2-bringup'):
-        name = template.replace('-', '_') + '_verify'
-        script += (f'robot-cli project create {template} --name {name} --ros-distro {profile.ros} '
-                   f'--output "$verify_dir/{name}/src" --smoke-test\n')
-    if with_torch or profile.gpu:
-        if profile.gpu:
-            script += "python -c 'import torch; assert torch.cuda.is_available(); x=torch.ones(4, device=\"cuda\"); assert x.sum().item()==4; print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name())'\n"
-        script += 'robot-cli project create pytorch-training --name training_verify --output "$verify_dir" --smoke-test\n'
+    import shlex
+    from rdk_cli.template_store import inventory
+    # 模板目录决定验收项目；每个名称选择适配当前发行版的最新启用版本。
+    candidates = {}
+    for record in inventory():
+        generation = record.get('generation', {})
+        if record['status'] != 'published' or not record['enabled']:
+            continue
+        ros = record['kind'].startswith('ros2_') and profile.ros in record['ros_distro']
+        training = record['kind'] == 'pytorch' and (with_torch or profile.gpu)
+        if not (ros or training) or not (generation.get('smoke_engine') or generation.get('smoke_commands')):
+            continue
+        previous = candidates.get(record['name'])
+        version = lambda item: tuple(map(int, item['version'].split('.')))
+        if previous is None or version(record) > version(previous):
+            candidates[record['name']] = record
+    for record in candidates.values():
+        name = record['name'].replace('-', '_') + '_verify'
+        reference = shlex.quote(f"{record['name']}@{record['version']}")
+        ros = record['kind'].startswith('ros2_')
+        options = f' --ros-distro {profile.ros}' if ros else ''
+        output = f'"$verify_dir/{name}/src"' if ros else '"$verify_dir"'
+        script += f'robot-cli project create {reference} --name {name}{options} --output {output} --smoke-test\n'
+    if profile.gpu:
+        script += "python -c 'import torch; assert torch.cuda.is_available(); x=torch.ones(4, device=\"cuda\"); assert x.sum().item()==4; print(torch.__version__, torch.version.cuda, torch.cuda.get_device_name())'\n"
     if result['mode'] == 'host':
         # 保留 CLI 虚拟环境可执行路径，避免要求用户提前安装另一份工具。
-        import shlex
         host_script = script.replace('robot-cli project', shlex.quote(sys.executable) + ' -m rdk_cli.main project')
         run_logged(['bash', '--noprofile', '--norc', '-c', host_script], env=os.environ, timeout=600)
     else:

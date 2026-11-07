@@ -4,3 +4,7 @@
 .agent/
 .aws/
 .codex/
+
+# 仅限本地的私有模板、模型及资料，禁止进入版本与发布包
+.local-private/
+templates/rdk_templates/robot-task-lite/

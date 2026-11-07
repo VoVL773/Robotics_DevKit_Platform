@@ -17,7 +17,7 @@ bash setup.sh
 裸命令进入 Textual 全屏终端工作台，不需要浏览器或桌面窗口。
 
 - **项目创建**：左侧先选择模板，再选择对应版本，默认选中最新的已发布且启用版本；右侧表单按版本参数动态生成，支持下拉框、默认值与输入校验。
-  填写生成位置后，可勾选 Git、CI、构建测试和“成功后自动退出”。创建按钮固定在底部，长表单可滚动。
+  所有模板均可选择“生成示例代码 / 不生成示例代码”，默认生成。填写生成位置后，可勾选 Git、CI、构建测试和“成功后自动退出”。创建按钮固定在底部，长表单可滚动。
 - **模板管理**：用鼠标或方向键选择版本，查看维护者、依赖、环境、变更日志和参数；可新建草稿、导入、启停与记录评审发布。
   新建和导入表单可展开；模板文件仍在命令输出/详情中显示的目录编辑。
 - **环境检查**：查看当前终端的系统、Python、ROS、colcon 和 PyTorch 安装状态。
@@ -70,7 +70,7 @@ Ubuntu 缺少 venv 时先安装 `python3-venv`（非默认 Python 可能需要�
 开发者需要测试依赖时，在仓库根目录执行：
 
 ```bash
-rdk/.venv/bin/python -m pip install -e './rdk[dev]' wheel
+rdk/.venv/bin/python -m pip install -e ./templates -e './rdk[dev]' wheel
 rdk/.venv/bin/python -m pytest -q rdk/tests
 ```
 
@@ -156,3 +156,16 @@ python -m pytest -q
 `outputs/` 保存 checkpoint、训练后评测指标和再次评测指标。
 checkpoint 含模型、优化器、配置和轮数；当前基础模板没有提供断点恢复或导出命令。
 如果当前 Python 已安装 torch 和 pytest，也可创建时加 `--smoke-test` 运行测试、训练及评测。
+
+## 选择是否生成示例代码
+
+所有模板、版本及导入模板共用此选项，终端工作台和逐步向导均可选择。默认生成示例，原有用法保持兼容：
+
+```bash
+robot-cli project create pytorch-training --name train_demo --examples
+robot-cli project create ros2-python --name my_robot --no-examples --output ~/my_ws/src
+```
+
+“不生成示例代码”仍保留可用的工程结构：ROS 模板保留打包、构建和空 launch/config 目录；PyTorch 保留 pyproject.toml、空 training/configs/tests。构建测试选项在无示例模式下只验证骨架，不运行演示任务。
+
+模板可通过 `generation.skeleton` 提供独立的无示例文件树；未声明的模板选择无示例时仅生成 README/src/config/docs 通用骨架，不复制原模板文件。选择生成示例时仍完整渲染原模板。生成记录 `.robot-cli.json` 的 include_examples 保存本次选择。

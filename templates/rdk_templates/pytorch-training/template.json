@@ -1,0 +1,105 @@
+{
+  "name": "pytorch-training",
+  "version": "1.0.0",
+  "description": "独立 CPU PyTorch 数据、模型、训练与评测",
+  "kind": "pytorch",
+  "priority": "P0",
+  "status": "published",
+  "maintainer": "VoVL773",
+  "environment": [
+    "Python >= 3.10",
+    "CPU"
+  ],
+  "dependencies": [
+    "Python >= 3.10",
+    "torch >= 2.2",
+    "pytest >= 7（测试）"
+  ],
+  "ros_distro": [],
+  "changelog": [
+    "1.0.0: 首期独立可运行模板，包含文档与自动化冒烟测试"
+  ],
+  "parameters": {
+    "package_name": {
+      "type": "string",
+      "required": true,
+      "pattern": "[a-z](?:[a-z0-9_]*[a-z0-9])?",
+      "label": "项目名称"
+    },
+    "maintainer": {
+      "type": "string",
+      "default": "Robotics DevKit contributors",
+      "required": true,
+      "pattern": "[\\w .@+\\-]+",
+      "label": "维护者"
+    }
+  },
+  "compatibility": {
+    "platforms": [
+      {
+        "os": "ubuntu",
+        "version": "22.04",
+        "ros": null,
+        "python": ">=3.10,<3.13"
+      },
+      {
+        "os": "ubuntu",
+        "version": "24.04",
+        "ros": null,
+        "python": ">=3.10,<3.13"
+      }
+    ],
+    "cuda": {
+      "required": false,
+      "versions": [
+        "12.6"
+      ],
+      "driver_min": "560.35.05"
+    },
+    "frameworks": {
+      "torch": ">=2.2,<3"
+    },
+    "simulators": []
+  },
+  "generation": {
+    "skeleton": ".rdp/skeleton",
+    "ci": ".rdp/ci.yml",
+    "skeleton_ci": ".rdp/skeleton-ci.yml",
+    "next_steps": [
+      "cd {{project_shell}}",
+      "python3 -m venv .venv && source .venv/bin/activate",
+      "python -m pip install -e '.[dev]'",
+      "python -m training.train --config configs/default.json",
+      "python -m training.evaluate --checkpoint outputs/checkpoint.pt"
+    ],
+    "skeleton_next_steps": [
+      "cd {{project_shell}}",
+      "请添加自己的实现与测试；本项目未生成示例代码。"
+    ],
+    "smoke_commands": [
+      [
+        "{{python}}",
+        "-m",
+        "pytest",
+        "-q"
+      ],
+      [
+        "{{python}}",
+        "-m",
+        "training.train"
+      ],
+      [
+        "{{python}}",
+        "-m",
+        "training.evaluate"
+      ]
+    ],
+    "skeleton_smoke_commands": [
+      [
+        "{{python}}",
+        "-c",
+        "import training"
+      ]
+    ]
+  }
+}

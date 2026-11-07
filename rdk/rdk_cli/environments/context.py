@@ -114,7 +114,10 @@ def copy_cli(destination):
     template_root = Path(str(files('rdk_templates')))
     shutil.copytree(cli_root, destination / 'rdk_cli', dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
-    shutil.copytree(template_root, destination / 'templates', dirs_exist_ok=True,
+    template_destination = destination / 'templates'
+    if template_destination.exists():
+        shutil.rmtree(template_destination)
+    shutil.copytree(template_root, template_destination,
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
     (destination / 'pyproject.toml').write_text(f'''[build-system]
 requires = ["setuptools==75.6.0", "wheel==0.45.1"]
@@ -134,7 +137,7 @@ packages = ["rdk_cli", "rdk_cli.commands", "rdk_cli.environments", "rdk_template
 rdk_templates = "templates"
 [tool.setuptools.package-data]
 rdk_cli = ["environments/assets/*"]
-rdk_templates = ["**/*", "**/.gitignore"]
+rdk_templates = ["**/*", "**/.gitignore", "**/.rdp/**/*", "**/.rdp/**/.gitkeep"]
 ''', encoding='utf-8')
 
 

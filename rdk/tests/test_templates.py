@@ -206,7 +206,7 @@ def test_alias_and_version_info():
 
 def test_wizard_creates_and_exits(tmp_path):
     # 默认模板按名称排序，PyTorch 第一个；空输入使用参数默认值。
-    answers = f'1\n1\nBad-Name\ntrain_demo\n\n{tmp_path}\nn\nn\nn\ny\n'
+    answers = f'1\n1\nBad-Name\ntrain_demo\n\n{tmp_path}\ny\nn\nn\nn\ny\n'
     result = runner.invoke(app, ["--wizard"], input=answers)
     assert result.exit_code == 0, result.output
     assert '参数错误' in result.output
@@ -232,7 +232,7 @@ def test_wizard_custom_typed_defaults(tmp_path):
     store.publish('custom-wizard@1.0.0', 'Reviewer')
     records = [item for item in store.inventory() if item['status'] == 'published' and item['enabled']]
     choice = next(index for index, item in enumerate(records, 1) if item['name'] == 'custom-wizard')
-    answers = f'1\n{choice}\ndemo\n\n\n\n{tmp_path}\nn\ny\n'
+    answers = f'1\n{choice}\ndemo\n\n\n\n{tmp_path}\ny\nn\ny\n'
     result = runner.invoke(app, ["--wizard"], input=answers)
     assert result.exit_code == 0, result.output
     lock = json.loads((tmp_path / 'demo/.robot-cli.json').read_text())

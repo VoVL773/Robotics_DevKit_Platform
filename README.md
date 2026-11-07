@@ -54,3 +54,7 @@ robot-cli env containers ros2-humble-dev
 robot-cli env init all --workspace .
 robot-cli env shell ros2-humble-dev
 ```
+
+所有模板均支持 **生成示例代码**（默认）/ **不生成示例代码**，可在项目创建页或向导选择；CLI 使用 `--examples` / `--no-examples`。无示例模式仅生成工程骨架，不运行演示任务，详见 [选项说明](rdk/docs/quickstart.md#选择是否生成示例代码)。
+
+公共模板统一位于 [`templates/`](templates/README.md)，与 CLI 源码分开维护、独立打包。

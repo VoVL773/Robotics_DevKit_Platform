@@ -32,6 +32,7 @@ def create_in_container(plan, container_name, mount, root=Path('.robot-cli/envir
                '--output', str(output)]
     for key, value in plan.request.parameters.items():
         command += ['--param', f'{key}={value}']
+    command.append('--examples' if plan.request.include_examples else '--no-examples')
     for selected, flag in [(plan.request.initialize_git, '--git'), (plan.request.ci, '--ci'),
                            (plan.request.smoke_test, '--smoke-test')]:
         if selected:
@@ -79,6 +80,7 @@ def create_in_existing(plan, container_name):
                '--name', plan.request.name, '--output', output, '--host-only']
     for key, value in plan.request.parameters.items():
         command += ['--param', f'{key}={value}']
+    command.append('--examples' if plan.request.include_examples else '--no-examples')
     for selected, flag in [(plan.request.initialize_git, '--git'), (plan.request.ci, '--ci'),
                            (plan.request.smoke_test, '--smoke-test')]:
         if selected:

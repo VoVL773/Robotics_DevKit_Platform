@@ -77,7 +77,7 @@ if [[ "$launcher_only" == 0 ]]; then
         "$venv_python" -m ensurepip
     fi
     printf '正在安装 CLI 与运行依赖……\n'
-    if ! "$venv_python" -m pip install --disable-pip-version-check --no-input -e "$repo_dir/rdk"; then
+    if ! "$venv_python" -m pip install --disable-pip-version-check --no-input -e "$repo_dir/templates" -e "$repo_dir/rdk"; then
         printf '错误：CLI 安装失败，请检查以上依赖和网络错误，再运行本脚本。\n' >&2
         exit 1
     fi

@@ -8,7 +8,7 @@ version = "1.1.0"
 description = "rdk 机器人开发工具链命令行：查看模板、创建 ROS 2 与 PyTorch 项目"
 maintainers = [{name = "VoVL773"}]
 requires-python = ">=3.10"
-dependencies = ["typer", "rich>=13", "textual>=1.0,<2", "packaging>=24"]
+dependencies = ["typer", "rich>=13", "textual>=1.0,<2", "packaging>=24", "robot-cli-templates>=1.1.0,<2"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
@@ -18,17 +18,10 @@ robot-cli = "rdk_cli.main:app"
 ros-cli = "rdk_cli.main:app"
 
 [tool.setuptools]
-packages = ["rdk_cli", "rdk_cli.commands", "rdk_cli.environments", "rdk_templates"]
-
-[tool.setuptools.package-dir]
-rdk_templates = "templates"
+packages = ["rdk_cli", "rdk_cli.commands", "rdk_cli.environments"]
 
 [tool.setuptools.package-data]
 rdk_cli = ["environments/assets/*"]
-rdk_templates = ["**/*", "**/.gitignore"]
-
-[tool.setuptools.exclude-package-data]
-rdk_templates = ["**/*.pyc", "**/__pycache__/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

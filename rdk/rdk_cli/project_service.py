@@ -12,7 +12,7 @@ import sys
 from rdk_cli import template_store as store
 from rdk_cli.environment import EnvironmentCheckError, check_environment
 from rdk_cli.project_ci import workflow_for
-from rdk_cli.project_files import add_runtime_dependencies, render_template
+from rdk_cli.project_files import add_runtime_dependencies, render_template, render_text, template_path
 from rdk_cli.version import cli_version
 
 
@@ -25,6 +25,7 @@ class ProjectRequest:
     initialize_git: bool = False
     ci: bool = False
     smoke_test: bool = False
+    include_examples: bool = True
 
     @classmethod
     def from_cli(cls, template, name, output, supplied, items, **options):
@@ -58,21 +59,18 @@ class ProjectPlan:
     def workspace(self):
         return self.output_path.parent if self.output_path.name == 'src' else self.output_path
 
+    def render_values(self):
+        return {**self.values, 'template_id': self.record['name'], 'template_version': self.record['version'],
+                'package_name_upper': self.request.name.upper(), 'language': self.record.get('language', self.kind),
+                'workspace_shell': shlex.quote(str(self.workspace)),
+                'project_shell': shlex.quote(str(self.project_path)), 'python': sys.executable,
+                'runner_os': 'ubuntu-22.04' if self.values.get('ros_distro') == 'humble' else 'ubuntu-24.04'}
+
     def next_steps(self):
-        """返回可复制的操作命令，由 CLI、向导等展示层决定输出方式。"""
-        name = self.request.name
-        if self.kind.startswith('ros2_'):
-            launch = 'bringup.launch.py' if self.kind == 'ros2_bringup' else 'hello.launch.py'
-            return [f'cd {shlex.quote(str(self.workspace))}',
-                    f'colcon build --symlink-install --packages-select {name}',
-                    'source install/setup.bash', f'ros2 launch {name} {launch}']
-        if self.kind == 'pytorch':
-            return [f'cd {shlex.quote(str(self.project_path))}',
-                    'python3 -m venv .venv && source .venv/bin/activate',
-                    "python -m pip install -e '.[dev]'",
-                    'python -m training.train --config configs/default.json',
-                    'python -m training.evaluate --checkpoint outputs/checkpoint.pt']
-        return []
+        """模板声明的后续操作只用于展示，不自动执行。"""
+        key = 'next_steps' if self.request.include_examples else 'skeleton_next_steps'
+        return [render_text(step, self.render_values())
+                for step in self.record.get('generation', {}).get(key, [])]
 
 
 def prepare_project(request: ProjectRequest, *, check_host: bool = True) -> ProjectPlan:
@@ -83,11 +81,19 @@ def prepare_project(request: ProjectRequest, *, check_host: bool = True) -> Proj
     if 'package_name' in request.parameters:
         raise store.TemplateError('package_name 应通过项目名称传入，不能重复提供')
     values = store.parameters(record, {'package_name': request.name, **request.parameters})
-    if record['kind'] == 'directory':
-        if request.ci:
-            raise store.TemplateError('通用 directory 模板需要自行提供 CI；--ci 仅支持 ROS/PyTorch')
-        if request.smoke_test:
-            raise store.TemplateError('通用 directory 模板需要自行执行测试')
+    generation = record.get('generation', {})
+    ci_key = 'ci' if request.include_examples else 'skeleton_ci'
+    smoke_key = 'smoke_commands' if request.include_examples else 'skeleton_smoke_commands'
+    if request.ci and not generation.get(ci_key):
+        raise store.TemplateError('模板未声明 CI 工作流，请在 template.json 的 generation 中配置')
+    if request.smoke_test and not (generation.get('smoke_engine') or generation.get(smoke_key)):
+        raise store.TemplateError('模板未声明冒烟测试，请在 template.json 的 generation 中配置')
+    resources = ['skeleton'] if not request.include_examples else []
+    if request.ci:
+        resources.append(ci_key)
+    for key in resources:
+        if generation.get(key):
+            template_path(record, generation[key])
     if not request.output.strip():
         raise store.TemplateError('请填写生成位置')
     output_path = Path(request.output).expanduser().resolve()
@@ -104,31 +110,36 @@ def create_project(plan: ProjectPlan) -> Path:
     request, values = plan.request, plan.values
     if plan.kind.startswith('ros2_'):
         command = ['ros2', 'pkg', 'create', request.name,
-                   '--build-type', 'ament_python' if plan.kind == 'ros2_python' else 'ament_cmake',
+                   '--build-type', plan.record.get('generation', {}).get('ros', {}).get('build_type', 'ament_cmake'),
                    '--license', values.get('license', 'Apache-2.0'),
                    '--maintainer-name', values.get('maintainer', 'contributor'),
                    '--maintainer-email', values.get('maintainer_email', 'maintainer@example.com'),
                    '--destination-directory', str(plan.output_path)]
-        if plan.kind != 'ros2_bringup':
-            command += ['--dependencies', 'rclpy' if plan.kind == 'ros2_python' else 'rclcpp',
+        node_dependency = plan.record.get('generation', {}).get('ros', {}).get('node_dependency')
+        if request.include_examples and node_dependency:
+            command += ['--dependencies', node_dependency,
                         '--node-name', values.get('node_name', 'hello_node')]
         plan.output_path.mkdir(parents=True, exist_ok=True)
         subprocess.run(command, check=True)
     else:
         plan.project_path.mkdir(parents=True, exist_ok=False)
-    render_values = {**values, 'template_id': plan.record['name'], 'template_version': plan.record['version'],
-                     'package_name_upper': request.name.upper(), 'language': plan.record.get('language', plan.kind)}
-    render_template(plan.record, plan.project_path, render_values)
+    render_values = plan.render_values()
+    if request.include_examples:
+        render_template(plan.record, plan.project_path, render_values)
+    else:
+        from rdk_cli.project_skeleton import render_skeleton
+        render_skeleton(plan.record, plan.project_path, render_values)
     if plan.kind.startswith('ros2_'):
-        add_runtime_dependencies(plan.project_path, plan.kind)
+        add_runtime_dependencies(plan.project_path, plan.record.get('generation', {}).get('ros', {}), include_examples=request.include_examples)
     store.save_json(plan.project_path / '.robot-cli.json', {
         'template': plan.record['name'], 'version': plan.record['version'], 'parameters': values,
         'source': plan.record.get('source', 'builtin'), 'cli_version': cli_version(),
+        'include_examples': request.include_examples,
     })
     if request.ci:
         workflow = plan.project_path / '.github/workflows/smoke.yml'
         workflow.parent.mkdir(parents=True, exist_ok=True)
-        workflow.write_text(workflow_for(plan.kind, values.get('ros_distro', 'jazzy')), encoding='utf-8')
+        workflow.write_text(workflow_for(plan.record, render_values, include_examples=request.include_examples), encoding='utf-8')
     if request.initialize_git:
         subprocess.run(['git', 'init', str(plan.project_path)], check=True)
     return plan.project_path
@@ -178,7 +189,8 @@ def _ros_build_python() -> str | None:
 
 def run_smoke_tests(plan: ProjectPlan) -> None:
     """执行已有依赖下的 ROS 构建测试或 CPU 训练评测，不负责安装依赖。"""
-    if plan.kind.startswith('ros2_'):
+    generation = plan.record.get('generation', {})
+    if generation.get('smoke_engine') == 'ros2':
         command = ['colcon', 'build', '--symlink-install', '--packages-select', plan.request.name]
         # 后续新增 CMake 参数时追加到同一列表，避免覆盖已有参数。
         cmake_args = []
@@ -188,11 +200,13 @@ def run_smoke_tests(plan: ProjectPlan) -> None:
         if cmake_args:
             command += ['--cmake-args', *cmake_args]
         subprocess.run(command, cwd=plan.workspace, check=True)
+        if not plan.request.include_examples:
+            return
         script = ('source install/setup.bash && colcon test --packages-select ' + shlex.quote(plan.request.name)
                   + ' --event-handlers console_direct+ && colcon test-result --verbose')
         subprocess.run(['bash', '-c', script], cwd=plan.workspace, check=True)
-    elif plan.kind == 'pytorch':
-        for command in ([sys.executable, '-m', 'pytest', '-q'],
-                        [sys.executable, '-m', 'training.train'],
-                        [sys.executable, '-m', 'training.evaluate']):
-            subprocess.run(command, cwd=plan.project_path, check=True)
+    else:
+        key = 'smoke_commands' if plan.request.include_examples else 'skeleton_smoke_commands'
+        for command in generation.get(key, []):
+            subprocess.run([render_text(arg, plan.render_values()) for arg in command],
+                           cwd=plan.project_path, check=True)

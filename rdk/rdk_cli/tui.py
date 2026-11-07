@@ -25,10 +25,7 @@ from rdk_cli.tui_layout import WORKBENCH_CSS, compose_workbench
 from rdk_cli import environment
 from rdk_cli import template_store as store
 
-LABELS = {
-    'package_name': '项目名称', 'node_name': '节点名称', 'maintainer': '维护者',
-    'maintainer_email': '维护者邮箱', 'license': '许可证', 'ros_distro': 'ROS 发行版',
-}
+
 
 
 class DevKitApp(App[str]):
@@ -153,7 +150,7 @@ class DevKitApp(App[str]):
                            f"环境：{'、'.join(record['environment'])}")
         widgets = []
         for key, spec in record['parameters'].items():
-            label = LABELS.get(key, key) + (' *' if spec.get('required') else '')
+            label = spec.get('label', key) + (' *' if spec.get('required') else '')
             default = spec.get('default', '')
             value = str(default) if spec['type'] == 'string' else (json.dumps(default) if default != '' else '')
             if old_reference == new_reference:
@@ -168,11 +165,12 @@ class DevKitApp(App[str]):
                 widgets.append(Input(value, id=f'param-{key}', placeholder=spec.get('description', '')))
             self.parameter_keys.append(key)
         await container.mount(*widgets)
-        directory = record['kind'] == 'directory'
+        generation = record.get('generation', {})
         for field in ('ci', 'smoke'):
             widget = self.query_one(f'#{field}', Checkbox)
-            widget.disabled = directory or self.busy
-            if directory:
+            supported = bool(generation.get('ci') or generation.get('skeleton_ci')) if field == 'ci' else bool(generation.get('smoke_engine') or generation.get('smoke_commands') or generation.get('skeleton_smoke_commands'))
+            widget.disabled = not supported or self.busy
+            if not supported:
                 widget.value = False
         container_toggle = self.query_one('#use-container', Checkbox)
         container_toggle.disabled = not record['kind'].startswith('ros2_') or self.busy
@@ -192,7 +190,7 @@ class DevKitApp(App[str]):
                      f"支持环境：{'、'.join(record['environment'])}", f"依赖：{'、'.join(record['dependencies']) or '无'}",
                      '变更日志：' + '；'.join(record['changelog']), f"模板目录：{record['path']}", '参数：']
             for key, spec in record['parameters'].items():
-                lines.append(f"  {LABELS.get(key, key)} ({key})：{spec['type']}，"
+                lines.append(f"  {spec.get('label', key)} ({key})：{spec['type']}，"
                              f"{'必填' if spec.get('required') else '可选'}，默认值 {spec.get('default', '无')}")
             self.query_one('#template-detail', Static).update('\n'.join(lines))
         for identifier in ('enable-template', 'disable-template', 'publish-template'):
@@ -246,6 +244,7 @@ class DevKitApp(App[str]):
             initialize_git=self.query_one('#git', Checkbox).value,
             ci=self.query_one('#ci', Checkbox).value,
             smoke_test=self.query_one('#smoke', Checkbox).value,
+            include_examples=self.query_one('#project-examples', Select).value == 'yes',
         )
         use_container = self.query_one('#use-container', Checkbox).value
         plan = prepare_project(request, check_host=False)
@@ -297,6 +296,7 @@ class DevKitApp(App[str]):
                            self.reference(self.project_record), '--name', supplied.pop('package_name'), '--output', output]
                 for key, value in supplied.items():
                     command.extend(['--param', f'{key}={value}'])
+                command.append('--examples' if self.query_one('#project-examples', Select).value == 'yes' else '--no-examples')
                 for field, flag in [('git', '--git'), ('ci', '--ci'), ('smoke', '--smoke-test')]:
                     if self.query_one(f'#{field}', Checkbox).value:
                         command.append(flag)
@@ -384,10 +384,11 @@ class DevKitApp(App[str]):
         self.query_one('#running', LoadingIndicator).set_class(busy, 'visible')
         if not busy:
             self.show_template_detail()
-            directory = self.project_record is None or self.project_record['kind'] == 'directory'
+            generation = self.project_record.get('generation', {}) if self.project_record else {}
             self.query_one('#create-project', Button).disabled = self.project_record is None
             for field in ('ci', 'smoke'):
-                self.query_one(f'#{field}', Checkbox).disabled = directory
+                supported = bool(generation.get('ci') or generation.get('skeleton_ci')) if field == 'ci' else bool(generation.get('smoke_engine') or generation.get('smoke_commands') or generation.get('skeleton_smoke_commands'))
+                self.query_one(f'#{field}', Checkbox).disabled = not supported
             self.query_one('#use-container', Checkbox).disabled = self.project_record is None or not self.project_record['kind'].startswith('ros2_')
 
     def start_job(self, command, title, project=False, auto_exit=False):

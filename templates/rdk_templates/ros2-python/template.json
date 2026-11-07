@@ -1,0 +1,117 @@
+{
+  "name": "ros2-python",
+  "version": "1.0.0",
+  "description": "ROS 2 Python 节点、参数、Launch 与测试",
+  "kind": "ros2_python",
+  "priority": "P0",
+  "status": "published",
+  "maintainer": "VoVL773",
+  "environment": [
+    "Ubuntu 24.04",
+    "ROS 2 Jazzy"
+  ],
+  "dependencies": [
+    "rclpy",
+    "ament_python",
+    "launch_ros",
+    "ament_index_python",
+    "python3-pytest"
+  ],
+  "ros_distro": [
+    "jazzy"
+  ],
+  "changelog": [
+    "1.0.0: 首期独立可运行模板，包含文档与自动化冒烟测试"
+  ],
+  "parameters": {
+    "package_name": {
+      "type": "string",
+      "required": true,
+      "pattern": "[a-z](?:[a-z0-9_]*[a-z0-9])?",
+      "label": "项目名称"
+    },
+    "maintainer": {
+      "type": "string",
+      "default": "Robotics DevKit contributors",
+      "required": true,
+      "pattern": "[\\w .@+\\-]+",
+      "label": "维护者"
+    },
+    "node_name": {
+      "type": "string",
+      "default": "hello_node",
+      "pattern": "[a-z][a-z0-9_]*",
+      "label": "节点名称"
+    },
+    "maintainer_email": {
+      "type": "string",
+      "default": "maintainer@example.com",
+      "pattern": "[\\w.+\\-]+@[\\w.\\-]+\\.[A-Za-z]{2,}",
+      "label": "维护者邮箱"
+    },
+    "license": {
+      "type": "string",
+      "default": "Apache-2.0",
+      "pattern": "[A-Za-z0-9][A-Za-z0-9. +\\-]*",
+      "label": "许可证"
+    },
+    "ros_distro": {
+      "type": "string",
+      "default": "jazzy",
+      "enum": [
+        "jazzy"
+      ],
+      "label": "ROS 发行版"
+    }
+  },
+  "compatibility": {
+    "platforms": [
+      {
+        "os": "ubuntu",
+        "version": "24.04",
+        "ros": "jazzy",
+        "python": ">=3.12,<3.13"
+      }
+    ],
+    "cuda": {
+      "required": false,
+      "versions": []
+    },
+    "frameworks": {
+      "rclcpp": "jazzy",
+      "rclpy": "jazzy"
+    },
+    "simulators": []
+  },
+  "generation": {
+    "skeleton": ".rdp/skeleton",
+    "ci": ".rdp/ci.yml",
+    "skeleton_ci": ".rdp/skeleton-ci.yml",
+    "next_steps": [
+      "cd {{workspace_shell}}",
+      "colcon build --symlink-install --packages-select {{package_name}}",
+      "source install/setup.bash",
+      "ros2 launch {{package_name}} hello.launch.py"
+    ],
+    "skeleton_next_steps": [
+      "cd {{workspace_shell}}",
+      "source /opt/ros/{{ros_distro}}/setup.bash",
+      "colcon build --symlink-install",
+      "source install/setup.bash"
+    ],
+    "ros": {
+      "build_type": "ament_python",
+      "node_dependency": "rclpy",
+      "runtime_dependencies": [
+        "launch_ros",
+        "ament_index_python"
+      ],
+      "example_dependencies": [],
+      "test_dependency": "python3-pytest"
+    },
+    "smoke_engine": "ros2"
+  },
+  "aliases": [
+    "ros2-python-package"
+  ]
+}

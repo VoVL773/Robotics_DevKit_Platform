@@ -16,11 +16,6 @@ from urllib.request import urlopen
 NAME = r'[a-z][a-z0-9]*(?:[-_][a-z0-9]+)*'
 VERSION = r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)'
 KINDS = {'ros2_python', 'ros2_cpp', 'ros2_bringup', 'pytorch', 'directory'}
-ALIASES = {
-    'ros2-python-package': 'ros2-python',
-    'ros2-cpp-package': 'ros2-cpp',
-    'ros2-cpp-template': 'ros2-cpp',
-}
 BUILTIN_ROOT = Path(str(files('rdk_templates')))
 CPP_KEYWORDS = set(('alignas alignof and asm auto bool break case catch char class const '
                     'constexpr continue decltype default delete do double else enum explicit '
@@ -43,7 +38,8 @@ def store_root():
 
 def split_reference(reference):
     name, sep, version = reference.partition('@')
-    name = ALIASES.get(name, name)
+    aliases = {alias: item['name'] for item in inventory() for alias in item.get('aliases', [])}
+    name = aliases.get(name, name)
     if not re.fullmatch(NAME, name) or (sep and not re.fullmatch(VERSION, version)):
         raise TemplateError('模板引用应为 name 或 name@MAJOR.MINOR.PATCH（例如 ros2-cpp@1.0.0）')
     return name, version if sep else None
@@ -62,8 +58,7 @@ def validate_manifest(manifest):
     for field in ('name', 'version', 'description', 'maintainer', 'kind', 'status'):
         if not isinstance(manifest.get(field), str) or not manifest[field].strip():
             raise TemplateError(f'模板元数据缺少非空字符串：{field}')
-    name, version = split_reference(f"{manifest['name']}@{manifest['version']}")
-    if name != manifest['name'] or not version:
+    if not re.fullmatch(NAME, manifest['name']) or not re.fullmatch(VERSION, manifest['version']):
         raise TemplateError('模板元数据必须使用规范名称，不能使用别名')
     if manifest['kind'] not in KINDS:
         raise TemplateError(f'不支持的模板 kind：{manifest["kind"]}')
@@ -82,6 +77,10 @@ def validate_manifest(manifest):
             validate_compatibility(manifest['compatibility'])
         except ValueError as error:
             raise TemplateError(str(error)) from error
+    aliases = manifest.get('aliases', [])
+    if not isinstance(aliases, list) or any(not isinstance(alias, str) or not re.fullmatch(NAME, alias) for alias in aliases):
+        raise TemplateError('aliases 必须是合法模板名称的列表')
+    validate_generation(manifest.get('generation', {}))
     parameters = manifest.get('parameters')
     if not isinstance(parameters, dict):
         raise TemplateError('parameters 必须是对象')
@@ -90,6 +89,8 @@ def validate_manifest(manifest):
             raise TemplateError(f'无效的参数定义：{key}')
         if not isinstance(spec.get('type'), str) or spec['type'] not in {'string', 'integer', 'number', 'boolean'}:
             raise TemplateError(f'参数 {key} 的 type 不受支持')
+        if 'label' in spec and not isinstance(spec['label'], str):
+            raise TemplateError(f'参数 {key} 的 label 必须是字符串')
         if 'required' in spec and not isinstance(spec['required'], bool):
             raise TemplateError(f'参数 {key} 的 required 必须为布尔值')
         if 'pattern' in spec:
@@ -107,6 +108,43 @@ def validate_manifest(manifest):
     if 'package_name' not in parameters or parameters['package_name']['type'] != 'string':
         raise TemplateError('parameters 必须包含 string 类型的 package_name')
     return manifest
+
+
+def validate_generation(generation):
+    if not isinstance(generation, dict):
+        raise TemplateError('generation 必须是对象')
+    allowed = {'skeleton', 'ci', 'skeleton_ci', 'next_steps', 'skeleton_next_steps',
+               'smoke_engine', 'smoke_commands', 'skeleton_smoke_commands', 'ros'}
+    if generation.keys() - allowed:
+        raise TemplateError(f'未知 generation 字段：{", ".join(sorted(generation.keys() - allowed))}')
+    for key in ('skeleton', 'ci', 'skeleton_ci'):
+        value = generation.get(key)
+        if key in generation and (not isinstance(value, str) or not value or
+                                  Path(value).is_absolute() or '..' in Path(value).parts):
+            raise TemplateError(f'generation.{key} 必须是模板内的相对路径')
+    for key in ('next_steps', 'skeleton_next_steps'):
+        value = generation.get(key, [])
+        if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+            raise TemplateError(f'generation.{key} 必须是字符串列表')
+    for key in ('smoke_commands', 'skeleton_smoke_commands'):
+        value = generation.get(key, [])
+        if not isinstance(value, list) or any(not isinstance(command, list) or not command or
+                any(not isinstance(arg, str) for arg in command) for command in value):
+            raise TemplateError(f'generation.{key} 必须是非空 argv 列表组成的列表')
+    if 'smoke_engine' in generation and generation['smoke_engine'] != 'ros2':
+        raise TemplateError('generation.smoke_engine 仅支持 ros2；其他测试请使用 smoke_commands')
+    ros = generation.get('ros', {})
+    if not isinstance(ros, dict):
+        raise TemplateError('generation.ros 必须是对象')
+    if ros.get('build_type', 'ament_cmake') not in {'ament_python', 'ament_cmake'}:
+        raise TemplateError('generation.ros.build_type 必须为 ament_python 或 ament_cmake')
+    for key in ('node_dependency', 'test_dependency'):
+        if ros.get(key) is not None and (not isinstance(ros[key], str) or not re.fullmatch(r'[a-z][a-z0-9_-]*', ros[key])):
+            raise TemplateError(f'generation.ros.{key} 必须为依赖包名称或 null')
+    for key in ('runtime_dependencies', 'example_dependencies'):
+        value = ros.get(key, [])
+        if not isinstance(value, list) or any(not isinstance(item, str) or not re.fullmatch(r'[a-z][a-z0-9_-]*', item) for item in value):
+            raise TemplateError(f'generation.ros.{key} 必须为依赖包名称列表')
 
 
 def state():
@@ -139,6 +177,13 @@ def inventory():
         records.append({**manifest, 'path': path.parent,
                         'enabled': enabled.get(identity, manifest['status'] == 'published'),
                         'builtin': path.is_relative_to(BUILTIN_ROOT)})
+    names = {record['name'] for record in records}
+    aliases = {}
+    for record in records:
+        for alias in record.get('aliases', []):
+            if alias in names or (alias in aliases and aliases[alias] != record['name']):
+                raise TemplateError(f'模板别名冲突：{alias}')
+            aliases[alias] = record['name']
     return records
 
 

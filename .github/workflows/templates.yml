@@ -8,7 +8,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python -m pip install -e './rdk[dev]' wheel
+      - run: python -m pip install -e ./templates -e './rdk[dev]' wheel
       - run: python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
       - run: python -m pytest -q rdk/tests
       - name: CPU train and evaluate
@@ -25,7 +25,7 @@ jobs:
           apt-get install -y python3-venv python3-pip python3-colcon-common-extensions \
             ros-jazzy-ament-cmake-gtest ros-jazzy-ament-cmake-pytest ros-jazzy-demo-nodes-cpp
           python3 -m venv --system-site-packages /tmp/rdk-venv
-          /tmp/rdk-venv/bin/python -m pip install -e './rdk[dev]'
+          /tmp/rdk-venv/bin/python -m pip install -e ./templates -e './rdk[dev]'
       - name: Build, test and launch all ROS P0 templates
         shell: bash
         run: |
@@ -43,6 +43,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python -m pip install -e './rdk[dev]'
+      - run: python -m pip install -e ./templates -e './rdk[dev]'
       - name: Locked CPU container build and template verification
         run: robot-cli env verify ros2-${{ matrix.ros }}-dev --container --workspace .
