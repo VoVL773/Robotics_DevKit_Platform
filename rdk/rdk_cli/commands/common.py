@@ -1,7 +1,9 @@
 """命令行统一错误出口；业务模块只抛异常，不终止 CLI。"""
 import typer
 
+from rdk_cli import terminal as ui
+
 
 def fail(message: str) -> None:
-    typer.secho(f'错误：{message}', fg=typer.colors.RED, err=True)
+    ui.error(message)
     raise typer.Exit(code=1)

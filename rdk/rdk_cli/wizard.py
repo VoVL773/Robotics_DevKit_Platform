@@ -16,7 +16,7 @@ def interactive_wizard():
     """--wizard 进入终端菜单；成功创建后返回并自动退出。"""
     while True:
         ui.menu()
-        action = typer.prompt(typer.style('请选择', fg=typer.colors.CYAN, bold=True), default='1')
+        action = typer.prompt(ui.prompt_label('请选择'), default='1')
         if action == '0':
             return
         if action == '2':
@@ -61,7 +61,7 @@ def interactive_wizard():
             continue
         record = available[choice - 1]
         ui.step('2 / 4', '填写项目参数')
-        ui.notice(f"已选择：{record['name']}@{record['version']}", 'bold green')
+        ui.notice(f"已选择：{record['name']}@{record['version']}", 'success')
         supplied = {}
         for key, spec in record['parameters'].items():
             label = spec.get('label', key)
@@ -69,7 +69,7 @@ def interactive_wizard():
                 default = spec.get('default', None if spec.get('required') else '')
                 if default is not None and spec['type'] != 'string' and default != '':
                     default = json.dumps(default)
-                value = typer.prompt(typer.style(label, fg=typer.colors.CYAN), default=default,
+                value = typer.prompt(ui.prompt_label(label), default=default,
                                      type=str, show_default='default' in spec)
                 if value == '' and not spec.get('required') and 'default' not in spec:
                     break
@@ -79,7 +79,7 @@ def interactive_wizard():
                     if key == 'package_name' and (value in store.CPP_KEYWORDS or store.keyword.iskeyword(value)):
                         raise store.TemplateError('项目名不能使用 Python/C++ 关键字')
                 except (store.TemplateError, ValueError) as error:
-                    ui.notice(f'参数错误：{error}，请重新输入。', 'bold red')
+                    ui.notice(f'参数错误：{error}，请重新输入。', 'error')
                     continue
                 supplied[key] = value
                 break
@@ -104,5 +104,5 @@ def interactive_wizard():
             git=initialize_git, ci=create_ci, smoke_test=run_smoke, examples=examples,
             container=False, container_name=None, mount=None, env_root='.robot-cli/environments', host_only=False, reuse_container=None,
         )
-        ui.notice('✓ 流程完成，退出 CLI。', 'bold green')
+        ui.notice('✓ 流程完成，退出 CLI。', 'success')
         return

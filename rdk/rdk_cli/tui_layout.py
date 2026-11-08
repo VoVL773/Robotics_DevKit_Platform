@@ -9,21 +9,22 @@ from textual.widgets import (
 )
 
 from rdk_cli import template_store as store
+from rdk_cli import theme as palette
 
 WORKBENCH_CSS = '''
-    Screen { background: #181d24; color: #dae4ee; }
-    Header { background: #123247; color: #e0f5ff; }
-    Footer { background: #123247; }
-    Tabs { background: #202b37; }
-    Tab.-active { color: #67d5ff; text-style: bold; }
-    Underline > .underline--bar { color: #37b8ef; background: #37b8ef; }
+    Screen { background: $background; color: $foreground; }
+    Header { background: $panel; color: $rdk-header-text; }
+    Footer { background: $panel; }
+    Tabs { background: $rdk-tabbar; }
+    Tab.-active { color: $primary; background: $rdk-tabbar; text-style: bold; }
+    Underline > .underline--bar { color: $accent; background: $accent; }
     TabbedContent { height: 1fr; }
     TabPane { padding: 1 2; }
-    .heading { color: #67d5ff; text-style: bold; margin-bottom: 1; height: auto; }
-    .hint { color: #94a8bc; height: auto; margin-bottom: 1; }
+    .heading { color: $primary; text-style: bold; margin-bottom: 1; height: auto; }
+    .hint { color: $rdk-muted; height: auto; margin-bottom: 1; }
     #create-layout { height: 1fr; }
-    #template-sidebar { width: 36; min-width: 24; border: round #299bcc; padding: 1; margin-right: 2; }
-    #project-panel { width: 1fr; min-width: 30; border: round #299bcc; }
+    #template-sidebar { width: 36; min-width: 24; border: round $secondary; padding: 1; margin-right: 2; }
+    #project-panel { width: 1fr; min-width: 30; border: round $secondary; }
     #project-form { height: 1fr; padding: 1 2; }
     #project-actions { padding: 0 2 1 2; margin: 0; }
     Screen.compact TabPane { padding: 0 1; }
@@ -32,21 +33,21 @@ WORKBENCH_CSS = '''
     Screen.compact #project-form { padding: 0 1; }
     Screen.compact #project-actions { padding: 0 1; }
     #template-description { height: auto; margin-top: 1; }
-    Label { height: auto; margin-top: 1; color: #b6cddd; }
+    Label { height: auto; margin-top: 1; color: $rdk-muted; }
     Input, Select { width: 1fr; margin-top: 0; }
-    Input:focus { border: tall #67d5ff; }
+    Input:focus { border: tall $primary; }
     #parameters { height: auto; }
     .buttons { height: auto; margin-top: 1; }
     Button { margin-right: 1; }
     Checkbox { margin: 0; height: auto; }
-    #project-error { height: auto; color: #ff8e91; margin-top: 1; }
-    #job-status { height: auto; background: #203344; padding: 0 2; color: #67d5ff; }
-    #template-table { height: 10; border: round #299bcc; }
-    #template-detail { height: auto; padding: 1; border: round #299bcc; margin-top: 1; }
+    #project-error { height: auto; color: $error; margin-top: 1; }
+    #job-status { height: auto; background: $rdk-job-bg; padding: 0 2; color: $primary; }
+    #template-table { height: 10; border: round $secondary; }
+    #template-detail { height: auto; padding: 1; border: round $secondary; margin-top: 1; }
     .form-section { height: auto; padding: 0 1 1 1; }
-    #management-message { height: auto; color: #67d5ff; margin-top: 1; }
-    #environment-report { height: auto; border: round #299bcc; padding: 1 2; }
-    #build-log { height: 1fr; border: round #299bcc; background: #10151b; }
+    #management-message { height: auto; color: $primary; margin-top: 1; }
+    #environment-report { height: auto; border: round $secondary; padding: 1 2; }
+    #build-log { height: 1fr; border: round $secondary; background: $rdk-log-bg; }
     #running { height: 1; display: none; }
     #running.visible { display: block; }
     #log-heading { height: auto; }
@@ -135,6 +136,10 @@ def compose_workbench() -> ComposeResult:
                 yield Static('Humble 对应 Ubuntu 22.04；Jazzy 对应 Ubuntu 24.04；跨版本可使用容器。', classes='hint')
                 yield Static('', id='environment-report', markup=False)
                 yield Button('重新检查', id='check-environment', variant='primary')
+                yield Static('界面主题', classes='heading')
+                yield Static('切换后立即生效并记住选择；也可按 Ctrl+T 循环切换。', classes='hint')
+                yield Select([(spec.label, spec.name) for spec in palette.THEMES.values()],
+                             value=palette.active_name(), allow_blank=False, id='theme-select')
         with TabPane('构建日志', id='logs-tab'):
             yield Static('生成、构建与测试输出', id='log-heading', classes='heading')
             yield LoadingIndicator(id='running')

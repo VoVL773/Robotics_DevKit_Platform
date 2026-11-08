@@ -24,6 +24,8 @@ from rdk_cli.project_service import ProjectRequest, prepare_project
 from rdk_cli.tui_layout import WORKBENCH_CSS, compose_workbench
 from rdk_cli import environment
 from rdk_cli import template_store as store
+from rdk_cli import terminal as ui
+from rdk_cli import theme as palette
 
 
 
@@ -36,11 +38,15 @@ class DevKitApp(App[str]):
     ENABLE_COMMAND_PALETTE = False
     BINDINGS = [
         Binding('f5', 'refresh', '刷新'),
+        Binding('ctrl+t', 'cycle_theme', '主题'),
         Binding('ctrl+l', 'show_logs', '构建日志'),
         Binding('ctrl+q', 'quit', '退出'),
         Binding('ctrl+c', 'quit', '退出', show=False),
     ]
     CSS = WORKBENCH_CSS
+
+    def get_theme_variable_defaults(self) -> dict[str, str]:
+        return palette.css_variable_defaults()
 
     def __init__(self):
         super().__init__()
@@ -63,7 +69,9 @@ class DevKitApp(App[str]):
         self.screen.set_class(event.size.width < 95, 'compact')
 
     async def on_mount(self):
-        self.theme = 'textual-dark'
+        for spec in palette.THEMES.values():
+            self.register_theme(palette.textual_theme(spec))
+        self.theme = palette.active_name()
         table = self.query_one('#template-table', DataTable)
         table.add_columns('模板', '版本', '发布状态', '启用状态')
         await self.refresh_templates()
@@ -93,9 +101,10 @@ class DevKitApp(App[str]):
         for record in self.records:
             table.add_row(record['name'], record['version'],
                           Text('已发布' if record['status'] == 'published' else '草稿',
-                               style='green' if record['status'] == 'published' else 'yellow'),
+                               style=ui.style('success' if record['status'] == 'published' else 'warning')),
                           Text('已启用' if record['enabled'] else '已停用',
-                               style='green' if record['enabled'] else 'dim'), key=self.reference(record))
+                               style=ui.style('success') if record['enabled'] else ui.style('muted', dim=True)),
+                          key=self.reference(record))
         if self.managed_reference not in [self.reference(record) for record in self.records]:
             self.managed_reference = self.reference(self.records[0]) if self.records else None
         if self.managed_reference:
@@ -378,7 +387,7 @@ class DevKitApp(App[str]):
         self.busy = busy
         for selector in ('Input', 'Select', 'Checkbox', 'Button'):
             for widget in self.query(selector):
-                if widget.id not in {'cancel-task', 'view-logs', 'back-to-form'}:
+                if widget.id not in {'cancel-task', 'view-logs', 'back-to-form', 'theme-select'}:
                     widget.disabled = busy
         self.query_one('#cancel-task', Button).disabled = not busy
         self.query_one('#running', LoadingIndicator).set_class(busy, 'visible')
@@ -399,7 +408,7 @@ class DevKitApp(App[str]):
         self.query_one('#job-status', Static).update(f'运行中 · {title}（界面可继续切换，支持取消）')
         log = self.query_one('#build-log', RichLog)
         log.clear()
-        log.write(Text('$ ' + shlex.join(command), style='cyan'))
+        log.write(Text('$ ' + shlex.join(command), style=ui.style('accent')))
         self.job_worker = self.run_worker(self.run_command(command, title, project, auto_exit), name='任务执行')
 
     async def run_command(self, command, title, project, auto_exit):
@@ -419,7 +428,7 @@ class DevKitApp(App[str]):
             else:
                 message = f'{title}成功' + (f'：{self.last_project}' if project else '；请到模板管理查看草稿。')
                 self.last_result = 'success'
-            log.write(Text(message, style='green' if self.last_result == 'success' else 'yellow'))
+            log.write(Text(message, style=ui.style('success' if self.last_result == 'success' else 'warning')))
             self.query_one('#job-status', Static).update(message)
             if not self.cancel_requested and code == 0 and not project:
                 await self.refresh_templates()
@@ -428,7 +437,7 @@ class DevKitApp(App[str]):
         except (OSError, ValueError) as error:
             self.last_result = 'failed'
             message = f'{title}失败：{error}'
-            log.write(Text(message, style='red'))
+            log.write(Text(message, style=ui.style('error', bold=True)))
             self.query_one('#job-status', Static).update(message)
         finally:
             # 即使读取日志异常，也不能遗留构建进程或 Git 子进程。
@@ -454,6 +463,33 @@ class DevKitApp(App[str]):
             return
         await self.refresh_templates()
         self.refresh_environment()
+
+    @on(Select.Changed, '#theme-select')
+    def select_theme(self, event):
+        if event.value in palette.THEMES:
+            self.apply_theme(str(event.value))
+
+    def apply_theme(self, name):
+        spec = palette.THEMES.get(name)
+        if spec is None:
+            return
+        self.theme = spec.name
+        selector = self.query('#theme-select')
+        if selector:
+            widget = selector.first()
+            with widget.prevent(Select.Changed):
+                widget.value = spec.name
+        try:
+            palette.set_active(spec.name)
+        except palette.ThemeError as error:
+            self.notify(str(error), severity='error')
+        else:
+            self.notify(f'已切换主题：{spec.label}')
+
+    def action_cycle_theme(self):
+        names = palette.ORDER
+        index = names.index(self.theme) if self.theme in names else -1
+        self.apply_theme(names[(index + 1) % len(names)])
 
     def show_tab(self, pane):
         # 切页时同时移动焦点，防止旧页面按钮的焦点事件重新激活旧标签。

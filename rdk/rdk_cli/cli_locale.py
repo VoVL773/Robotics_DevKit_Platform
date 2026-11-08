@@ -8,6 +8,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from rdk_cli import terminal as ui
+
 
 def _usage(ctx) -> str:
     usage = ctx.get_usage()
@@ -34,20 +36,22 @@ class _ChineseHelp:
                     description = record[1]
                     if param.name == 'help' and description == 'Show this message and exit.':
                         description = '显示帮助并退出。'
-                    table.add_row(Text(record[0], style='cyan'), Text(description))
+                    table.add_row(Text(record[0], style=ui.style('accent')), Text(description))
                     count += 1
             if count:
-                console.print(Panel(table, title=title, title_align='left'))
+                console.print(Panel(table, title=title, title_align='left',
+                                    border_style=ui.style('border')))
         if isinstance(self, core.TyperGroup):
             table = Table.grid(padding=(0, 2))
             count = 0
             for name in self.list_commands(ctx):
                 command = self.get_command(ctx, name)
                 if command is not None and not command.hidden:
-                    table.add_row(Text(name, style='cyan'), Text(command.get_short_help_str()))
+                    table.add_row(Text(name, style=ui.style('accent')), Text(command.get_short_help_str()))
                     count += 1
             if count:
-                console.print(Panel(table, title='命令', title_align='left'))
+                console.print(Panel(table, title='命令', title_align='left',
+                                    border_style=ui.style('border')))
         if self.epilog:
             console.print(self.epilog)
         return output.getvalue().rstrip('\n')

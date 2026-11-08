@@ -107,12 +107,12 @@ def project_create(
             raise EnvironmentError('项目创建的自动容器路由目前面向 ROS 模板；PyTorch 可先用 env shell 进入开发环境')
         create_project(plan)
         ui.success(plan.project_path, plan.reference)
-        ui.notice('下一步', 'bold cyan')
+        ui.notice('下一步', 'accent')
         for command in plan.next_steps():
             typer.echo('  ' + command)
         if request.smoke_test:
             run_smoke_tests(plan)
-            ui.notice('✓ 冒烟测试通过。', 'bold green')
+            ui.notice('✓ 冒烟测试通过。', 'success')
     except (store.TemplateError, EnvironmentCheckError, EnvironmentError, OSError, ET.ParseError) as error:
         fail(str(error))
     except subprocess.CalledProcessError as error:
